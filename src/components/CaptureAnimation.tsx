@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Pokeball from "./Pokeball";
 import { Pokemon } from "@/types/pokemon";
 import confetti from "canvas-confetti";
+import { usePokemon } from "@/contexts/PokemonContext";
 
 interface CaptureAnimationProps {
   pokemon: Pokemon;
@@ -18,6 +19,8 @@ const CaptureAnimation = ({
   const [phase, setPhase] = useState<
     "throw" | "shake" | "capture" | "fail"
   >("throw");
+
+  const { capturePokemonWithPoints } = usePokemon();
 
   // ------------------------------------
   // 🔥 EFECTO PRINCIPAL
@@ -51,12 +54,15 @@ const CaptureAnimation = ({
 
       triggerConfetti();
 
+      // ⭐ Nuevo: sumar puntos automáticamente
+      await capturePokemonWithPoints(pokemon);
+
       await wait(2200);
       onComplete(true);
     };
 
     sequence();
-  }, [alreadyCaptured, onComplete]);
+  }, [alreadyCaptured, onComplete, pokemon, capturePokemonWithPoints]);
 
   // ------------------------------------
   // UTILS

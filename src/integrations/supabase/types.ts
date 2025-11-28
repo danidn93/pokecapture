@@ -78,6 +78,7 @@ export type Database = {
           username: string
           points: number
           level: number
+          guessed_pokemon: string[] | null
         }
         Insert: {
           avatar_url?: string | null
@@ -86,6 +87,7 @@ export type Database = {
           username: string
           points?: number
           level?: number
+          guessed_pokemon?: string[] | null
         }
         Update: {
           avatar_url?: string | null
@@ -94,6 +96,28 @@ export type Database = {
           username?: string
           points?: number
           level?: number
+          guessed_pokemon?: string[] | null
+        }
+        Relationships: []
+      }
+      guess_pokemon: {
+        Row: {
+          id: string
+          name: string
+          image_url: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          image_url: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          image_url?: string
+          created_at?: string
         }
         Relationships: []
       }

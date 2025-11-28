@@ -12,6 +12,7 @@ import Pokedex from "./pages/Pokedex";
 import Leaderboard from "./pages/Leaderboard";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
+import GuessPokemon from "@/pages/GuessPokemon";
 
 const queryClient = new QueryClient();
 
@@ -70,6 +71,7 @@ const AppRoutes = () => {
       <Route path="/pokedex" element={<ProtectedRoute><Pokedex /></ProtectedRoute>} />
       <Route path="/leaderboard" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
       <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
+      <Route path="/guess" element={<GuessPokemon />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

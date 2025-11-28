@@ -12,6 +12,7 @@ interface Profile {
   created_at: string;
   points: number;
   level: number;
+  guessed_pokemon: string[] | null;
 }
 
 interface AuthContextType {
@@ -48,7 +49,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const fetchProfile = async (userId: string) => {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, username, avatar_url, created_at, points, level')
+    .select('id, username, avatar_url, created_at, points, level, guessed_pokemon')
     .eq('id', userId)
     .maybeSingle();
 

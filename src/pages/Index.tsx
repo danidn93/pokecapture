@@ -127,6 +127,27 @@ const Index = () => {
                 </div>
               </motion.button>
             )}
+
+            <motion.button
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.45 }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => navigate('/guess')}
+              className="flex items-center gap-4 p-6 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-500 text-white"
+            >
+              <div className="p-3 rounded-xl bg-white/20">
+                <Sparkles className="w-8 h-8" />
+              </div>
+              <div className="text-left">
+                <h3 className="font-display text-sm mb-1">¿QUIÉN ES ESE POKÉMON?</h3>
+                <p className="font-body text-sm opacity-80">
+                  Gana puntos extra adivinando
+                </p>
+              </div>
+            </motion.button>
+
           </div>
 
           {/* Floating Pokemon decoration */}

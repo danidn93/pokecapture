@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Scan, Trophy, Backpack, Settings, LogOut } from 'lucide-react';
+import { Scan, Trophy, Backpack, Settings, LogOut, Sparkles } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import Pokeball from './Pokeball';
 
@@ -13,6 +13,7 @@ const NavBar = () => {
     { path: '/scan', icon: Scan, label: 'Escanear' },
     { path: '/pokedex', icon: Backpack, label: 'Pokédex' },
     { path: '/leaderboard', icon: Trophy, label: 'Ranking' },
+    { path: '/guess', icon: Sparkles, label: 'Adivinar' },
   ];
 
   const handleLogout = async () => {
