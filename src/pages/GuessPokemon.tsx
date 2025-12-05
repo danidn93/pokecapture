@@ -88,7 +88,7 @@ export default function GuessPokemon() {
       await supabase
         .from("profiles")
         .update({
-          points: (profile?.points ?? 0) + 2,
+          points: (profile?.points ?? 0) + 1,
           guessed_pokemon: [...(profile?.guessed_pokemon ?? []), pokemon.id],
         })
         .eq("id", user?.id);
@@ -176,7 +176,7 @@ export default function GuessPokemon() {
           />
 
           {feedback === "correct" && (
-            <p className="mt-3 text-green-400 font-bold">¡Correcto! +2 puntos 🎉</p>
+            <p className="mt-3 text-green-400 font-bold">¡Correcto! +1 puntos 🎉</p>
           )}
           {feedback === "wrong" && (
             <p className="mt-3 text-red-500 font-bold">
