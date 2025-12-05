@@ -188,6 +188,63 @@ const Admin = () => {
 
   if (!isAdmin) return null;
 
+  // ===========================
+  // 🔥 DESCARGAR TODOS LOS QR COMO PNG
+  // ===========================
+  const downloadAllQRCodes = async () => {
+    if (!pokemons.length) {
+      toast.error("No hay pokémon registrados");
+      return;
+    }
+
+    toast.info("Generando códigos...");
+
+    for (const pkm of pokemons) {
+      await generateSingleQR(pkm);
+    }
+
+    toast.success("Descarga completada");
+  };
+
+  const generateSingleQR = async (pokemon: any) => {
+    return new Promise<void>((resolve) => {
+      const size = 400;
+
+      const svgElement = document.querySelector(`#qr-${pokemon.id}`) as SVGElement;
+
+      if (!svgElement) {
+        console.error("No se encontró el QR del Pokémon:", pokemon.name);
+        resolve();
+        return;
+      }
+
+      const svgString = new XMLSerializer().serializeToString(svgElement);
+
+      // Convertir a Base64
+      const svgBase64 =
+        "data:image/svg+xml;base64," +
+        btoa(unescape(encodeURIComponent(svgString)));
+
+      const img = new window.Image();
+      img.src = svgBase64;
+
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0, size, size);
+
+        const link = document.createElement("a");
+        link.download = `${pokemon.name}-qr.png`;
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+
+        resolve();
+      };
+    });
+  };
+
   return (
     <>
       <NavBar />
@@ -235,6 +292,13 @@ const Admin = () => {
             className="w-full max-w-md mx-auto bg-blue-600 hover:bg-blue-700 text-white font-display py-6 rounded-full mb-6"
           >
             <Plus className="mr-2" /> POKÉMON DE ADIVINANZA
+          </Button>
+
+          <Button
+            onClick={downloadAllQRCodes}
+            className="w-full max-w-md mx-auto bg-red-600 hover:bg-red-700 text-white font-display py-6 rounded-full mb-6"
+          >
+            Descargar todos los QR
           </Button>
 
           {/* FORMULARIO QR */}
@@ -372,8 +436,8 @@ const Admin = () => {
                     bg-card/50 border rounded-xl 
                     flex flex-col items-center justify-center p-3
                   ">
-                    <div className="bg-white p-2 rounded-lg shadow">
-                      <QRCode value={pokemon.qr_code} size={90} />
+                    <div id={`qr-wrap-${pokemon.id}`} className="qr-hidden">
+                      <QRCode id={`qr-${pokemon.id}`} value={pokemon.qr_code} size={400} />
                     </div>
 
                     <p className="text-[10px] font-mono mt-2 text-center">

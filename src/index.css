@@ -216,3 +216,9 @@
 #qr-reader video {
   @apply rounded-2xl;
 }
+
+.qr-hidden {
+  position: absolute;
+  left: -9999px;
+  top: -9999px;
+}
