@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Plus, Trash2, Settings, Users, Image } from 'lucide-react';
+import { Plus, Trash2, Settings, Users, Image as IconImage } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -19,11 +19,14 @@ const Admin = () => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [showGuessForm, setShowGuessForm] = useState(false);
 
+  const generateQrCode = () =>
+    `pokemon-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+
   const [newPokemon, setNewPokemon] = useState({
     name: '',
     image_url: '',
     rarity: 'common' as 'common' | 'uncommon' | 'rare' | 'legendary',
-    qr_code: '',
+    qr_code: generateQrCode(),
   });
 
   const [guessPokemon, setGuessPokemon] = useState({
@@ -65,10 +68,8 @@ const Admin = () => {
   }, []);
 
   // ===========================
-  // QR CODE
+  // 🔥 IMÁGENES
   // ===========================
-  const generateQrCode = () =>
-    `pokemon-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -83,12 +84,9 @@ const Admin = () => {
     reader.readAsDataURL(file);
   };
 
-  // ===========================
-  // 🔥 GENERAR SILUETA NEGRA
-  // ===========================
   const generateSilhouette = async (base64: string): Promise<string> => {
     return new Promise((resolve) => {
-      const img = new Image();
+      const img = new window.Image();
       img.src = base64;
 
       img.onload = () => {
@@ -105,7 +103,7 @@ const Admin = () => {
 
         for (let i = 0; i < data.length; i += 4) {
           const alpha = data[i + 3];
-          if (alpha < 40) continue;  
+          if (alpha < 40) continue;
 
           data[i] = 0;
           data[i + 1] = 0;
@@ -136,7 +134,7 @@ const Admin = () => {
   };
 
   // ===========================
-  // 🔥 GUARDAR Pokémon QR
+  // 🔥 GUARDAR Pokémon
   // ===========================
   const handleAddPokemon = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -153,14 +151,21 @@ const Admin = () => {
     if (success) {
       toast.success(`¡${newPokemon.name} añadido!`);
       setShowAddForm(false);
+
+      // Reset
+      setNewPokemon({
+        name: "",
+        image_url: "",
+        rarity: "common",
+        qr_code: generateQrCode(),
+      });
+      setImagePreview(null);
+
     } else {
       toast.error("Error al añadir Pokémon");
     }
   };
 
-  // ===========================
-  // 🔥 GUARDAR Pokémon ADIVINANZA
-  // ===========================
   const handleAddGuessPokemon = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -182,45 +187,32 @@ const Admin = () => {
     }
 
     toast.success("¡Pokémon de adivinanza añadido!");
+
+    // Cerrar formulario
     setShowGuessForm(false);
-    fetchGuessList(); // 🔥 recargar lista automáticamente
+    setGuessPokemon({ name: "", real_image_url: "" });
+    setRealPreview(null);
+    setSilhouettePreview(null);
+
+    // Recargar lista
+    fetchGuessList();
   };
 
-  if (!isAdmin) return null;
-
   // ===========================
-  // 🔥 DESCARGAR TODOS LOS QR COMO PNG
+  // 🔥 EXPORTAR QR
   // ===========================
-  const downloadAllQRCodes = async () => {
-    if (!pokemons.length) {
-      toast.error("No hay pokémon registrados");
-      return;
-    }
-
-    toast.info("Generando códigos...");
-
-    for (const pkm of pokemons) {
-      await generateSingleQR(pkm);
-    }
-
-    toast.success("Descarga completada");
-  };
-
   const generateSingleQR = async (pokemon: any) => {
     return new Promise<void>((resolve) => {
-      const size = 400;
-
-      const svgElement = document.querySelector(`#qr-${pokemon.id}`) as SVGElement;
+      const svgElement = document.querySelector(`#qr-export-${pokemon.id}`) as SVGElement;
 
       if (!svgElement) {
-        console.error("No se encontró el QR del Pokémon:", pokemon.name);
+        console.error("No se encontró el QR exportable:", pokemon.id);
         resolve();
         return;
       }
 
       const svgString = new XMLSerializer().serializeToString(svgElement);
 
-      // Convertir a Base64
       const svgBase64 =
         "data:image/svg+xml;base64," +
         btoa(unescape(encodeURIComponent(svgString)));
@@ -230,10 +222,10 @@ const Admin = () => {
 
       img.onload = () => {
         const canvas = document.createElement("canvas");
-        canvas.width = size;
-        canvas.height = size;
+        canvas.width = 600;
+        canvas.height = 600;
         const ctx = canvas.getContext("2d")!;
-        ctx.drawImage(img, 0, 0, size, size);
+        ctx.drawImage(img, 0, 0, 600, 600);
 
         const link = document.createElement("a");
         link.download = `${pokemon.name}-qr.png`;
@@ -245,6 +237,26 @@ const Admin = () => {
     });
   };
 
+  const downloadAllQRCodes = async () => {
+    if (!pokemons.length) {
+      toast.error("No hay pokémon registrados");
+      return;
+    }
+
+    toast.info("Generando QR...");
+
+    for (const pkm of pokemons) {
+      await generateSingleQR(pkm);
+    }
+
+    toast.success("Descarga completada");
+  };
+
+  // ===========================
+  // 🔥 RENDER
+  // ===========================
+  if (!isAdmin) return null;
+
   return (
     <>
       <NavBar />
@@ -252,7 +264,7 @@ const Admin = () => {
       <div className="min-h-screen bg-hero-gradient pb-24 pt-20">
         <div className="container mx-auto px-4 py-8">
 
-          {/* HEADER */}
+          {/* ================= HEADER ================= */}
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center mb-8">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/20 text-secondary mb-4">
               <Settings className="w-5 h-5" />
@@ -264,10 +276,10 @@ const Admin = () => {
             </h1>
           </motion.div>
 
-          {/* STATS */}
+          {/* ================= STATS ================= */}
           <div className="grid grid-cols-2 gap-4 max-w-md mx-auto mb-8">
             <div className="bg-card/50 border rounded-xl p-4 text-center">
-              <Image className="w-8 h-8 mx-auto text-primary" />
+              <IconImage className="w-8 h-8 mx-auto text-primary" />
               <p className="text-2xl font-display">{pokemons.length}</p>
               <p className="text-xs text-muted-foreground">Pokémon QR</p>
             </div>
@@ -279,7 +291,7 @@ const Admin = () => {
             </div>
           </div>
 
-          {/* BOTONES */}
+          {/* ================= BOTÓN CREAR QR ================= */}
           <Button
             onClick={() => { setShowAddForm(true); setShowGuessForm(false); }}
             className="w-full max-w-md mx-auto bg-pokemon-green hover:bg-pokemon-green/90 text-background font-display py-6 rounded-full mb-4"
@@ -301,7 +313,7 @@ const Admin = () => {
             Descargar todos los QR
           </Button>
 
-          {/* FORMULARIO QR */}
+          {/* ================= FORMULARIO CREAR ================= */}
           {showAddForm && (
             <motion.form
               initial={{ opacity: 0 }}
@@ -312,7 +324,9 @@ const Admin = () => {
               <label className="font-display text-sm">Nombre</label>
               <Input
                 value={newPokemon.name}
-                onChange={(e) => setNewPokemon(prev => ({ ...prev, name: e.target.value }))}
+                onChange={(e) =>
+                  setNewPokemon(prev => ({ ...prev, name: e.target.value }))
+                }
                 className="font-display"
               />
 
@@ -358,7 +372,7 @@ const Admin = () => {
             </motion.form>
           )}
 
-          {/* FORMULARIO ADIVINANZA */}
+          {/* ================= FORMULARIO ADIVINANZA ================= */}
           {showGuessForm && (
             <motion.form
               initial={{ opacity: 0 }}
@@ -366,40 +380,70 @@ const Admin = () => {
               onSubmit={handleAddGuessPokemon}
               className="max-w-md mx-auto bg-card/50 border rounded-xl p-6 space-y-4 mb-8"
             >
+              <h2 className="text-center font-display text-lg mb-2">
+                Registrar Pokémon de Adivinanza
+              </h2>
+
+              {/* Nombre */}
               <label className="font-display text-sm">Nombre del Pokémon</label>
               <Input
                 value={guessPokemon.name}
-                onChange={(e) => setGuessPokemon(prev => ({ ...prev, name: e.target.value }))}
+                onChange={(e) =>
+                  setGuessPokemon((prev) => ({ ...prev, name: e.target.value }))
+                }
                 className="font-display"
+                placeholder="Ej: ¿Quién es este Pokémon?"
               />
 
+              {/* Imagen real */}
               <label className="font-display text-sm">Imagen real</label>
               <Input type="file" accept="image/*" onChange={handleGuessRealUpload} />
 
               {realPreview && (
                 <>
-                  <p className="font-display text-xs text-muted-foreground mt-2">Original:</p>
-                  <img src={realPreview} className="w-24 h-24 mx-auto rounded-lg" />
+                  <p className="font-display text-xs text-muted-foreground mt-2">
+                    Imagen original:
+                  </p>
+                  <img
+                    src={realPreview}
+                    className="w-32 h-32 mx-auto rounded-lg object-cover border"
+                  />
                 </>
               )}
 
               {silhouettePreview && (
                 <>
-                  <p className="font-display text-xs text-muted-foreground mt-2">Silueta:</p>
-                  <img src={silhouettePreview} className="w-24 h-24 mx-auto rounded-lg" />
+                  <p className="font-display text-xs text-muted-foreground mt-2">
+                    Silueta generada:
+                  </p>
+                  <img
+                    src={silhouettePreview}
+                    className="w-32 h-32 mx-auto rounded-lg object-cover border"
+                  />
                 </>
               )}
 
               <div className="flex gap-2 mt-4">
-                <Button className="flex-1 bg-blue-600 text-white font-display">Guardar</Button>
-                <Button variant="outline" onClick={() => setShowGuessForm(false)}>
+                <Button className="flex-1 bg-blue-600 text-white font-display">
+                  Guardar
+                </Button>
+
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowGuessForm(false);
+                    setGuessPokemon({ name: "", real_image_url: "" });
+                    setRealPreview(null);
+                    setSilhouettePreview(null);
+                  }}
+                >
                   Cancelar
                 </Button>
               </div>
             </motion.form>
           )}
 
-          {/* LISTA QR */}
+          {/* ================= LISTA POKEMON ================= */}
           <h2 className="font-display text-sm text-muted-foreground max-w-2xl mx-auto mb-3">
             POKÉMON REGISTRADOS (QR)
           </h2>
@@ -423,52 +467,39 @@ const Admin = () => {
                   `}
                 >
 
-                  {/* FRONT – TARJETA POKÉMON NORMAL */}
+                  {/* ================= FRONT ================= */}
                   <div className="absolute inset-0 [backface-visibility:hidden]">
                     <PokemonCard pokemon={pokemon} />
                   </div>
 
-                  {/* BACK – QR */}
+                  {/* ================= BACK ================= */}
                   <div className="
                     absolute inset-0 
                     [transform:rotateY(180deg)]
                     [backface-visibility:hidden]
                     bg-card/50 border rounded-xl 
-                    flex flex-col items-center justify-center p-3
+                    flex items-center justify-center p-0
                   ">
-                    <div id={`qr-wrap-${pokemon.id}`} className="qr-hidden">
-                      <QRCode id={`qr-${pokemon.id}`} value={pokemon.qr_code} size={400} />
+                    
+                    {/* QR visible ocupando 100% del reverso */}
+                    <div className="w-full h-full flex items-center justify-center">
+                      <QRCode value={pokemon.qr_code} style={{ width: "100%", height: "100%" }} />
                     </div>
-
-                    <p className="text-[10px] font-mono mt-2 text-center">
-                      {pokemon.qr_code}
-                    </p>
-
-                    {/* BOTÓN ELIMINAR TAMBIÉN EN EL REVERSO */}
-                    <button
-                      onClick={(e) => { 
-                        e.stopPropagation(); 
-                        deletePokemon(pokemon.id); 
-                      }}
-                      className="mt-2 p-1 rounded-full bg-destructive text-white"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
                   </div>
 
+                </div>
+
+                {/* QR oculto para exportación */}
+                <div className="qr-hidden">
+                  <QRCode id={`qr-export-${pokemon.id}`} value={pokemon.qr_code} size={600} />
                 </div>
               </motion.div>
             ))}
           </div>
 
-          {/* ========================== */}
-          {/* ⭐ SEPARADOR ✔ */}
-          {/* ========================== */}
-          <div className="max-w-2xl mx-auto my-10 border-t border-muted-foreground/30"></div>
+          {/* ================= ADIVINANZA ================= */}
+          <div className="max-w-2xl mx-auto my-10 border-t border-muted-foreground/30" />
 
-          {/* ========================== */}
-          {/* ⭐ LISTA GUESS_POKEMON ✔ */}
-          {/* ========================== */}
           <h2 className="font-display text-sm text-muted-foreground max-w-2xl mx-auto mb-3">
             POKÉMON DE ADIVINANZA
           </h2>
