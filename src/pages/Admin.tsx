@@ -11,6 +11,8 @@ import { toast } from 'sonner';
 import { Plus, Trash2, Settings, Users, Image as IconImage } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import { supabase } from '@/integrations/supabase/client';
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
 
 const Admin = () => {
   const { isAdmin } = useAuth();
@@ -238,19 +240,72 @@ const Admin = () => {
   };
 
   const downloadAllQRCodes = async () => {
-    if (!pokemons.length) {
-      toast.error("No hay pokémon registrados");
-      return;
-    }
+  if (!pokemons.length) {
+    toast.error("No hay pokémon registrados");
+    return;
+  }
 
-    toast.info("Generando QR...");
+  toast.info("Generando ZIP...");
 
-    for (const pkm of pokemons) {
-      await generateSingleQR(pkm);
-    }
+  const zip = new JSZip();
 
-    toast.success("Descarga completada");
+  // Crear carpetas por rareza
+  const folders = {
+    common: zip.folder("common")!,
+    uncommon: zip.folder("uncommon")!,
+    rare: zip.folder("rare")!,
+    legendary: zip.folder("legendary")!,
   };
+
+  const generatePNG = (svgElement: SVGElement, folder: JSZip, name: string): Promise<void> => {
+    return new Promise((resolve) => {
+      const svgString = new XMLSerializer().serializeToString(svgElement);
+
+      const svgBase64 =
+        "data:image/svg+xml;base64," +
+        btoa(unescape(encodeURIComponent(svgString)));
+
+      const img = new Image();
+      img.src = svgBase64;
+
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = 600;
+        canvas.height = 600;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0, 600, 600);
+
+        canvas.toBlob((blob) => {
+          if (blob) folder.file(`${name}.png`, blob);
+          resolve();
+        });
+      };
+    });
+  };
+
+  // 📌 Procesar solo pokemons
+  for (const pkm of pokemons) {
+    const svgElement = document.querySelector(
+      `#qr-export-${pkm.id}`
+    ) as SVGElement;
+
+    if (!svgElement) {
+      console.warn("No se encontró QR export:", pkm.id);
+      continue;
+    }
+
+    const folder = folders[pkm.rarity as keyof typeof folders];
+    const fileName = `QR-${pkm.name.replace(/\s+/g, "_")}`;
+
+    await generatePNG(svgElement, folder, fileName);
+  }
+
+  // 🎉 Descargar ZIP completo
+  zip.generateAsync({ type: "blob" }).then((content) => {
+    saveAs(content, "pokemons-qr.zip");
+    toast.success("ZIP generado correctamente 🎉");
+  });
+};
 
   // ===========================
   // 🔥 RENDER
