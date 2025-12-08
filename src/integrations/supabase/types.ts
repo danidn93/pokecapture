@@ -1,3 +1,4 @@
+//scr/integrations/supabase/types.ts
 export type Json =
   | string
   | number
@@ -145,39 +146,76 @@ export type Database = {
           category: string
           description: string | null
           pokemon_gif: string | null
-          winner_user_id: string | null
-          winner_display_name: string | null
           delivered: boolean
+          viewed: boolean
           created_at: string
           updated_at: string
-          viewed: boolean
+          total_winners: number | null   // 👈 NUEVO - cantidad de ganadores
         }
         Insert: {
           id?: string
           category: string
           description?: string | null
           pokemon_gif?: string | null
-          winner_user_id?: string | null
-          winner_display_name?: string | null
           delivered?: boolean
-          created_at?: string
           viewed?: boolean
+          created_at?: string
+          updated_at?: string
+          total_winners?: number | null  // 👈 NUEVO
         }
         Update: {
           id?: string
           category?: string
           description?: string | null
           pokemon_gif?: string | null
-          winner_user_id?: string | null
-          winner_display_name?: string | null
           delivered?: boolean
-          created_at?: string
           viewed?: boolean
+          created_at?: string
+          updated_at?: string
+          total_winners?: number | null   // 👈 NUEVO
+        }
+        Relationships: []
+      },
+
+      award_winners: {
+        Row: {
+          id: string
+          award_id: string
+          user_id: string
+          display_name: string
+          delivered: boolean
+          viewed: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          award_id: string
+          user_id: string
+          display_name: string
+          delivered?: boolean
+          viewed?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          award_id?: string
+          user_id?: string
+          display_name?: string
+          delivered?: boolean
+          viewed?: boolean
+          created_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "awards_winner_user_id_fkey"
-            columns: ["winner_user_id"]
+            foreignKeyName: "award_winners_award_id_fkey"
+            columns: ["award_id"]
+            isOneToOne: false
+            referencedRelation: "awards"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "award_winners_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]

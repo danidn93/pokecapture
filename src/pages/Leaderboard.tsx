@@ -3,36 +3,48 @@ import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePokemon } from "@/contexts/PokemonContext";
 import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 import NavBar from "@/components/NavBar";
 import { Trophy, Medal, Award, Crown, Gift } from "lucide-react";
 
 const Leaderboard = () => {
   const { user } = useAuth();
   const { leaderboard, loading } = usePokemon();
+  const navigate = useNavigate();
 
   const [myAwards, setMyAwards] = useState([]);
 
   // ============================
-  // 🔥 Cargar premios ganados
+  // 🔥 Cargar premios ganados desde award_winners
   // ============================
   useEffect(() => {
     if (!user) return;
 
     const loadAwards = async () => {
-      const { data } = await supabase
-        .from("awards")
-        .select("*")
-        .eq("winner_user_id", user.id)
-        .eq("delivered", true)
-        .order("updated_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("award_winners")
+        .select(`
+          *,
+          award:awards(*)
+        `)
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
 
-      setMyAwards(data || []);
+      if (error) {
+        console.error("Error loading awards:", error);
+        return;
+      }
+
+      // Guardar solo la parte del premio
+      setMyAwards(data.map((row) => row.award));
     };
 
     loadAwards();
   }, [user]);
 
-  // Loading Leaderboard
+  // ============================
+  // 🔄 Loading Leaderboard
+  // ============================
   if (loading) {
     return (
       <>
@@ -156,7 +168,7 @@ const Leaderboard = () => {
           </div>
 
           {/* =======================
-              🎁 SECCIÓN PREMIOS GANADOS (3 columnas)
+              🎁 PREMIOS GANADOS (3 columnas)
               ======================= */}
           {user && myAwards.length > 0 && (
             <div className="max-w-3xl mx-auto mt-16">
@@ -167,7 +179,7 @@ const Leaderboard = () => {
                 </h2>
               </div>
 
-              {/* GRID de 3 columnas */}
+              {/* GRID */}
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                 {myAwards.map((award, index) => (
                   <motion.div
@@ -178,7 +190,7 @@ const Leaderboard = () => {
                     className="p-4 rounded-xl bg-white/20 backdrop-blur-md border border-yellow-400 text-center shadow-lg flex flex-col items-center"
                     style={{ minHeight: "260px" }}
                   >
-                    {/* GIF Pokémon */}
+                    {/* GIF */}
                     <img
                       src={award.pokemon_gif}
                       alt={award.category}
@@ -186,15 +198,7 @@ const Leaderboard = () => {
                     />
 
                     {/* Categoría */}
-                    <h3
-                      className="font-display text-yellow-300 text-base leading-tight px-2 break-words"
-                      style={{
-                        wordWrap: "break-word",
-                        overflowWrap: "break-word",
-                        whiteSpace: "normal",
-                        maxWidth: "100%",
-                      }}
-                    >
+                    <h3 className="font-display text-yellow-300 text-base leading-tight px-2 break-words">
                       {award.category}
                     </h3>
 
@@ -203,11 +207,30 @@ const Leaderboard = () => {
                       {new Date(award.updated_at).toLocaleDateString()}
                     </p>
 
-                    {/* Botón */}
+                    {/* BOTÓN REVER PREMIO → con awardWinnerId */}
                     <button
-                      onClick={() =>
-                        window.location.assign(`/award-notification?awardId=${award.id}`)
-                      }
+                      onClick={async () => {
+                        // 1️⃣ Buscamos el award_winner correcto
+                        const { data, error } = await supabase
+                          .from("award_winners")
+                          .select("id")
+                          .eq("award_id", award.id)
+                          .eq("user_id", user.id)
+                          .single();
+
+                        if (error || !data) {
+                          console.error("No se encontró award_winner", error);
+                          return;
+                        }
+
+                        // 2️⃣ Navegar con award + awardWinnerId
+                        navigate("/award-notification", {
+                          state: {
+                            award,
+                            awardWinnerId: data.id,
+                          },
+                        });
+                      }}
                       className="mt-auto w-full py-2 text-sm font-display bg-yellow-400 text-black rounded-lg hover:bg-yellow-300"
                     >
                       REVER PREMIO

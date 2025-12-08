@@ -12,38 +12,61 @@ const NavBar = () => {
   const { profile, isAdmin, signOut } = useAuth();
 
   // --- DETECCIÓN AUTOMÁTICA DE PREMIOS ---
-  useEffect(() => {
+useEffect(() => {
   if (!profile?.id) return;
 
-  const checkAward = async () => {
+  let isChecking = false;
+
+  const checkAwards = async () => {
+    if (isChecking) return;
+    isChecking = true;
+
     const { data, error } = await supabase
-      .from("awards")
-      .select("*")
-      .eq("winner_user_id", profile.id)
-      .eq("delivered", true)
+      .from("award_winners")
+      .select(`
+        id,
+        viewed,
+        award_id,
+        award:awards(
+          id,
+          category,
+          description,
+          pokemon_gif,
+          total_winners,
+          created_at
+        )
+      `)
+      .eq("user_id", profile.id)
       .eq("viewed", false)
-      .order("updated_at", { ascending: false })
+      .order("created_at", { ascending: true })
       .limit(1);
 
+    isChecking = false;
+
     if (error) {
-      console.error("Error loading award:", error);
+      console.error("Error checking notifications:", error);
       return;
     }
 
-    const award = data?.[0];
+    const pending = data?.[0];
 
-    if (award) {
-      navigate("/award-notification", { state: { award } });
+    if (pending?.award) {
+      if (location.pathname !== "/award-notification") {
+        navigate("/award-notification", {
+          state: {
+            award: pending.award,
+            awardWinnerId: pending.id, 
+          },
+        });
+      }
     }
   };
 
-  // verificar cada 5 segundos
-  checkAward();
-  const interval = setInterval(checkAward, 5000);
+  checkAwards();
 
+  const interval = setInterval(checkAwards, 5000);
   return () => clearInterval(interval);
-}, [profile]);
-
+}, [profile?.id, location.pathname]);
 
   const navItems = [
     { path: "/scan", icon: Scan, label: "Escanear" },

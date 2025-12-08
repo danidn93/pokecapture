@@ -17,51 +17,51 @@ const avatars = [
   "/avatars/surge.png",
 ];
 
-// 🔊 sonidos
+// sonido simple
 const playSound = (file: string, volume = 0.5) => {
   const audio = new Audio(file);
   audio.volume = volume;
   audio.currentTime = 0;
-
   audio.play().catch(() => {});
 };
 
-// 📝 Máquina de escribir segura
+// máquina de escribir (multi seguro)
 const typeText = (
   text: string,
-  set: (s: string) => void,
-  speed = 110,
-  intervalRef: React.MutableRefObject<NodeJS.Timeout | null>
+  setter: (t: string) => void,
+  intervalRef: React.MutableRefObject<NodeJS.Timeout | null>,
+  speed = 95
 ) => {
   let i = 0;
 
   if (intervalRef.current) clearInterval(intervalRef.current);
 
   intervalRef.current = setInterval(() => {
-    set(text.slice(0, i));
-    playSound("/sounds/type.mp3", 0.25);
+    setter(text.slice(0, i));
+    playSound("/sounds/type.mp3", 0.3);
     i++;
-
-    if (i > text.length && intervalRef.current) {
-      clearInterval(intervalRef.current);
+    if (i > text.length) {
+      clearInterval(intervalRef.current!);
       intervalRef.current = null;
     }
   }, speed);
 };
 
 const AwardShowcase = () => {
-  const [awards, setAwards] = useState([]);
+  const [awards, setAwards] = useState<any[]>([]);
   const [selected, setSelected] = useState<any>(null);
-  const [winner, setWinner] = useState<any>(null);
+
+  const [winners, setWinners] = useState<any[]>([]);
   const [typedText, setTypedText] = useState("");
-  const [currentAvatar, setCurrentAvatar] = useState<string | null>(null);
+
+  const [rouletteFrames, setRouletteFrames] = useState<string[]>([]);
   const [stopped, setStopped] = useState(false);
 
-  // refs
+  // refs para intervalos
   const spinRef = useRef<NodeJS.Timeout | null>(null);
   const typeRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Cargar premios
+  // cargar premios
   useEffect(() => {
     const load = async () => {
       const { data } = await supabase.from("awards").select("*");
@@ -70,7 +70,7 @@ const AwardShowcase = () => {
     load();
   }, []);
 
-  // Limpieza total al desmontar
+  // cleanup global
   useEffect(() => {
     return () => {
       if (spinRef.current) clearInterval(spinRef.current);
@@ -79,78 +79,96 @@ const AwardShowcase = () => {
   }, []);
 
   const startPresentation = async (award: any) => {
-    // reiniciar todo
+    // limpiar timers
     if (spinRef.current) clearInterval(spinRef.current);
     if (typeRef.current) clearInterval(typeRef.current);
 
     setSelected(award);
-    setWinner(null);
-    setTypedText("");
     setStopped(false);
-    setCurrentAvatar(null);
+    setTypedText("");
+    setWinners([]);
+    setRouletteFrames([]);
 
-    const { data: win } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", award.winner_user_id)
-      .single();
+    // cargar ganadores reales
+    const { data: rows } = await supabase
+      .from("award_winners")
+      .select("*, profiles:profiles(*)")
+      .eq("award_id", award.id);
 
-    setWinner(win);
+    const winList = rows || [];
 
-    typeText(award.description, setTypedText, 110, typeRef);
+    setWinners(winList);
 
-    // ruleta rápida
+    // inicializar ruleta: un frame por ganador
+    setRouletteFrames(winList.map(() => avatars[0]));
+
+    // escribir descripción
+    typeText(award.description, setTypedText, typeRef);
+
+    // iniciar ruleta -> simultánea para todos
     spinRef.current = setInterval(() => {
-      setCurrentAvatar(
-        avatars[Math.floor(Math.random() * avatars.length)]
+      setRouletteFrames((prev) =>
+        prev.map(
+          () => avatars[Math.floor(Math.random() * avatars.length)]
+        )
       );
+      playSound("/sounds/spin.wav", 0.15);
     }, 70);
 
     playSound("/sounds/spin.wav", 0.4);
   };
 
-  const stopRoulette = async () => {
-    if (!winner) return;
+const stopRoulette = async () => {
+  if (!winners.length) return;
 
-    playSound("/sounds/stop.wav", 0.8);
+  playSound("/sounds/stop.wav", 0.8);
 
-    if (spinRef.current) clearInterval(spinRef.current);
+  // detener ruleta rápida
+  if (spinRef.current) clearInterval(spinRef.current);
 
-    let delay = 70;
-    const slowdown = 1.25;
+  let delay = 70;
+  const slowdown = 1.25;
 
-    const smooth = () => {
-      setCurrentAvatar(
-        avatars[Math.floor(Math.random() * avatars.length)]
-      );
-      playSound("/sounds/spin.wav", 0.15);
+  const smoothStop = () => {
+    setRouletteFrames(prev =>
+      prev.map(() => avatars[Math.floor(Math.random() * avatars.length)])
+    );
 
-      delay *= slowdown;
+    playSound("/sounds/spin.wav", 0.2);
 
-      if (delay < 450) {
-        setTimeout(smooth, delay);
-      } else {
-        setTimeout(async () => {
-          setCurrentAvatar(winner.avatar_url);
-          setStopped(true);
+    delay *= slowdown;
 
-          playSound("/sounds/winner.wav", 0.9);
+    if (delay < 450) {
+      setTimeout(smoothStop, delay);
+    } else {
+      setTimeout(async () => {
+        // mostrar los ganadores reales
+        setRouletteFrames(winners.map(w => w.profiles.avatar_url));
+        setStopped(true);
+        playSound("/sounds/winner.wav", 1);
 
-          await supabase
-            .from("awards")
-            .update({ delivered: true })
-            .eq("id", selected.id);
+        // 1️⃣ marcar premio como entregado (general)
+        await supabase
+          .from("awards")
+          .update({ delivered: true })
+          .eq("id", selected.id);
 
-        }, delay);
-      }
-    };
+        // 2️⃣ marcar TODOS LOS GANADORES como "delivered = true" en award_winners
+        await supabase
+          .from("award_winners")
+          .update({ delivered: true })    // debes agregar esta columna
+          .eq("award_id", selected.id);
 
-    smooth();
+      }, delay);
+    }
   };
 
-  // ================================
-  // LISTA DE PREMIOS (GRID 3 COLUMNAS)
-  // ================================
+  smoothStop();
+};
+
+  // =============================
+  // LISTA DE PREMIOS
+  // =============================
   if (!selected) {
     return (
       <div className="min-h-screen bg-black text-white p-10">
@@ -166,10 +184,7 @@ const AwardShowcase = () => {
                          hover:border-yellow-400 bg-white/10 backdrop-blur-md text-center"
               onClick={() => startPresentation(award)}
             >
-              <img
-                src={award.pokemon_gif}
-                className="w-24 h-24 mx-auto mb-3"
-              />
+              <img src={award.pokemon_gif} className="w-24 h-24 mx-auto mb-3" />
               <h3 className="font-display text-xl text-yellow-400">
                 {award.category}
               </h3>
@@ -183,9 +198,9 @@ const AwardShowcase = () => {
     );
   }
 
-  // ================================
+  // =============================
   // PRESENTACIÓN DEL PREMIO
-  // ================================
+  // =============================
   return (
     <div
       className="min-h-screen text-white flex flex-col items-center justify-center relative
@@ -195,7 +210,7 @@ const AwardShowcase = () => {
         backgroundAttachment: "fixed",
       }}
     >
-      {/* 🔙 Botón atrás */}
+      {/* 🔙 ATRÁS */}
       <button
         onClick={() => {
           if (spinRef.current) clearInterval(spinRef.current);
@@ -215,37 +230,42 @@ const AwardShowcase = () => {
         transition={{ repeat: Infinity, duration: 2 }}
       />
 
+      {/* CATEGORÍA */}
       <h1 className="font-display text-3xl mt-6 bg-white/70 text-black px-6 py-3 rounded-lg">
         {selected.category}
       </h1>
 
-      <p className="font-['Press_Start_2P'] text-xs sm:text-sm max-w-lg text-center mt-6 
-                  leading-relaxed bg-white/70 text-black p-4 rounded-lg">
+      {/* DESCRIPCIÓN */}
+      <p className="font-['Press_Start_2P'] text-xs sm:text-sm max-w-lg 
+                    text-center mt-6 bg-white/70 text-black p-4 rounded-lg leading-relaxed">
         {typedText}
       </p>
 
-      {/* RULETA */}
-      <div className="mt-10 w-40 h-40 flex items-center justify-center">
-        {currentAvatar && (
-          <img
-            src={currentAvatar}
-            className="w-32 h-32 rounded-full border-4 border-yellow-400"
-          />
-        )}
+      {/* MULTIPLES RULETAS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-10">
+        {rouletteFrames.map((frame, i) => (
+          <div key={i} className="flex flex-col items-center">
+            <img
+              src={frame}
+              className="w-32 h-32 rounded-full border-4 border-yellow-400 mb-3"
+            />
+            {stopped && (
+              <p className="font-display text-xl bg-white/70 text-black px-4 py-2 rounded-lg">
+                {winners[i].display_name}
+              </p>
+            )}
+          </div>
+        ))}
       </div>
 
-      {/* BOTÓN DETENER o GANADOR */}
-      {!stopped ? (
+      {/* BOTÓN DETENER */}
+      {!stopped && (
         <button
           onClick={stopRoulette}
-          className="mt-8 px-6 py-3 bg-red-600 rounded-xl font-display text-white text-xl"
+          className="mt-10 px-6 py-3 bg-red-600 rounded-xl font-display text-xl"
         >
           DETENER
         </button>
-      ) : (
-        <h2 className="font-display text-3xl mt-6 bg-white/70 text-black px-6 py-3 rounded-lg">
-          {selected.winner_display_name}
-        </h2>
       )}
     </div>
   );

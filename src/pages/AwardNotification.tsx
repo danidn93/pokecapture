@@ -6,14 +6,16 @@ import { motion } from "framer-motion";
 const AwardNotification = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const awardFromState = location?.state?.award;
 
-  const [award, setAward] = useState<any>(awardFromState || null);
+  const awardFromState = location?.state?.award || null;
+  const awardWinnerId = location?.state?.awardWinnerId || null;
+
+  const [award, setAward] = useState<any>(awardFromState);
   const [winner, setWinner] = useState<any>(null);
   const [typedMessage, setTypedMessage] = useState("");
 
   // Máquina de escribir
-  const typeText = (text: string, setter: (t: string) => void, speed = 90) => {
+  const typeText = (text: string, setter: (t: string) => void, speed = 70) => {
     let i = 0;
     const interval = setInterval(() => {
       setter(text.slice(0, i));
@@ -22,120 +24,110 @@ const AwardNotification = () => {
     }, speed);
   };
 
-  // Cargar premio más reciente si no viene por state
+  // 1️⃣ Si no vino el award → no hacemos nada (NavBar siempre envía award)
   useEffect(() => {
-    const loadAward = async () => {
-      if (!award) {
-        const { data } = await supabase
-          .from("awards")
-          .select("*")
-          .eq("delivered", true)
-          .eq("viewed", false)
-          .order("updated_at", { ascending: false })
-          .limit(1);
-
-        setAward(data?.[0] || null);
-      }
-    };
-
-    loadAward();
+    if (!award) {
+      console.warn("⚠ No se recibió award en AwardNotification");
+    }
   }, []);
 
-  // Cargar ganador + mensaje + marcar viewed TRUE
+  // 2️⃣ Cargar SOLO EL GANADOR CORRECTO desde award_winners
   useEffect(() => {
-    if (!award) return;
+    if (!award || !awardWinnerId) return;
 
     const loadWinner = async () => {
-      const { data: winnerData } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", award.winner_user_id)
+      const { data, error } = await supabase
+        .from("award_winners")
+        .select(`
+          id,
+          display_name,
+          profiles:profiles(avatar_url)
+        `)
+        .eq("id", awardWinnerId)
         .single();
 
-      setWinner(winnerData);
+      if (error) {
+        console.error("Error loading winner:", error);
+        return;
+      }
 
-      typeText(
-        `¡Felicidades ${award.winner_display_name}! Has ganado el premio ${award.category}!`,
-        setTypedMessage
-      );
+      setWinner(data);
 
-      // 🔥 Marcar como visto AUTOMÁTICAMENTE
+      const message = `¡Felicidades ${data.display_name}! Has ganado el premio ${award.category}!`;
+      typeText(message, setTypedMessage);
+
+      // marcar como visto SOLO ESTE REGISTRO
       await supabase
-        .from("awards")
+        .from("award_winners")
         .update({ viewed: true })
-        .eq("id", award.id);
+        .eq("id", awardWinnerId);
     };
 
     loadWinner();
-  }, [award]);
+  }, [award, awardWinnerId]);
 
-  // 🔥 FUNCIÓN CERRAR → también marca viewed = true
-  const closeNotification = async () => {
-    if (award?.id) {
-      await supabase
-        .from("awards")
-        .update({ viewed: true })
-        .eq("id", award.id);
-    }
-    navigate(-1);
-  };
+  // 3️⃣ Auto-cerrar en 1 min
+  const closeNotification = () => navigate(-1);
 
-  // Auto‐cerrar al minuto
   useEffect(() => {
-    const timer = setTimeout(closeNotification, 60000);
-    return () => clearTimeout(timer);
+    const t = setTimeout(closeNotification, 60000);
+    return () => clearTimeout(t);
   }, [award]);
 
   if (!award || !winner)
     return (
-      <p className="text-white mt-40 text-center text-xl">Cargando premio...</p>
+      <p className="text-white mt-40 text-center text-xl">
+        Cargando premio...
+      </p>
     );
-
-  const pokemonGIF = award.pokemon_gif || "/fallback/pokemon.gif";
 
   return (
     <div
-      className="min-h-screen text-white flex flex-col items-center justify-center bg-cover bg-center bg-no-repeat"
+      className="min-h-screen text-white flex flex-col items-center justify-center bg-cover bg-center bg-no-repeat relative"
       style={{
         backgroundImage: "url('/backgrounds/stadium.jpg')",
         backgroundAttachment: "fixed",
       }}
     >
-      {/* BOTÓN CERRAR */}
+      {/* Botón cerrar */}
       <button
         onClick={closeNotification}
-        className="absolute top-6 right-6 bg-white/60 backdrop-blur-xl px-4 py-2 rounded-lg text-black font-display shadow-lg hover:bg-white/80"
+        className="absolute top-6 right-6 bg-white/60 backdrop-blur-xl px-4 py-2 rounded-lg 
+                   text-black font-display shadow-lg hover:bg-white/80"
       >
         Cerrar ✕
       </button>
 
       {/* Pokémon */}
       <motion.img
-        src={pokemonGIF}
-        onError={(e) => (e.currentTarget.src = "/fallback/pokemon.gif")}
-        className="w-48 drop-shadow-[0_0_20px_rgba(255,255,255,0.9)]"
+        src={award.pokemon_gif}
+        className="w-48"
         animate={{ y: [0, -20, 0] }}
         transition={{ repeat: Infinity, duration: 2 }}
       />
 
-      <h1 className="text-3xl font-display mt-6 bg-white/40 backdrop-blur-md text-black px-6 py-3 rounded-xl shadow-lg">
+      <h1 className="text-3xl font-display mt-6 bg-white/40 text-black px-6 py-3 rounded-xl">
         ¡Premio conseguido!
       </h1>
 
-      <p className="text-center font-['Press_Start_2P'] text-xs sm:text-sm max-w-md mt-6 px-6 py-4 leading-relaxed bg-white/40 backdrop-blur-md text-black rounded-xl shadow-lg">
+      {/* Mensaje */}
+      <p
+        className="text-center font-['Press_Start_2P'] text-xs sm:text-sm max-w-md mt-6 
+                   px-6 py-4 bg-white/40 text-black rounded-xl"
+      >
         {typedMessage}
       </p>
 
-      {/* Avatar del ganador */}
+      {/* SOLO TU AVATAR */}
       <motion.img
-        src={winner.avatar_url}
-        className="w-28 h-28 rounded-full border-4 border-yellow-400 mt-10 shadow-[0_0_25px_rgba(255,255,0,0.8)]"
+        src={winner.profiles.avatar_url}
+        className="w-28 h-28 rounded-full border-4 border-yellow-400 mt-10"
         animate={{ scale: [1, 1.25, 1] }}
         transition={{ duration: 1.4, repeat: Infinity }}
       />
 
-      <h2 className="font-display text-2xl mt-4 text-black bg-white/40 backdrop-blur-md px-6 py-3 rounded-xl shadow-lg">
-        {award.winner_display_name}
+      <h2 className="font-display text-2xl mt-4 bg-white/40 text-black px-6 py-3 rounded-xl">
+        {winner.display_name}
       </h2>
     </div>
   );
