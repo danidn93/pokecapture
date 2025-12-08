@@ -4,22 +4,28 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { motion } from "framer-motion";
 
 const AssignWinner = () => {
-  const [awards, setAwards] = useState([]);
-  const [profiles, setProfiles] = useState([]);
-  const [selected, setSelected] = useState(null);
+  const [awards, setAwards] = useState<any[]>([]);
+  const [profiles, setProfiles] = useState<any[]>([]);
+  const [selected, setSelected] = useState<any>(null);
   const [winnerUser, setWinnerUser] = useState("");
   const [winnerDisplayName, setWinnerDisplayName] = useState("");
 
   useEffect(() => {
     const load = async () => {
-      const { data: awards } = await supabase.from("awards").select("*");
+      const { data: awards } = await supabase
+        .from("awards")
+        .select("*")
+        .order("created_at", { ascending: false });
+
       setAwards(awards || []);
 
       const { data: users } = await supabase.from("profiles").select("*");
       setProfiles(users || []);
     };
+
     load();
   }, []);
 
@@ -37,7 +43,7 @@ const AssignWinner = () => {
 
     if (error) return toast.error("Error asignando ganador");
 
-    toast.success("Ganador asignado");
+    toast.success("Ganador asignado correctamente 🎉");
   };
 
   return (
@@ -45,32 +51,77 @@ const AssignWinner = () => {
       <NavBar />
 
       <div className="min-h-screen pt-24 p-6">
-        <h1 className="text-xl font-display text-center mb-6">
-          Seleccionar ganador
+
+        <h1 className="text-3xl font-display text-center mb-10 text-yellow-400">
+          Seleccionar Ganador
         </h1>
 
-        {/* Lista de premios */}
-        <div className="space-y-3 max-w-md mx-auto mb-10">
-          {awards.map((a) => (
-            <div
-              key={a.id}
-              className={`p-4 border rounded-xl cursor-pointer ${
-                selected?.id === a.id ? "border-yellow-400" : "border-gray-600"
-              }`}
-              onClick={() => setSelected(a)}
+        {/* GRID DE PREMIOS */}
+        <h2 className="text-lg font-display text-center mb-4">
+          Premios disponibles
+        </h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto mb-10 px-4">
+
+          {awards.map((award, idx) => (
+            <motion.div
+              key={award.id}
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: idx * 0.05 }}
+              onClick={() => {
+                setSelected(award);
+                setWinnerUser("");
+                setWinnerDisplayName("");
+              }}
+              className={`
+                cursor-pointer p-4 rounded-xl border shadow-lg bg-card/60 backdrop-blur-md 
+                transition-all duration-200
+                ${selected?.id === award.id ? "border-yellow-400 scale-105" : "border-gray-700 hover:scale-105"}
+              `}
             >
-              <h3 className="font-display text-lg">{a.category}</h3>
-            </div>
+              {/* Pokemon GIF */}
+              <img
+                src={award.pokemon_gif}
+                className="w-24 h-24 mx-auto mb-3 rounded-md border bg-black/40"
+              />
+
+              {/* Categoria */}
+              <p className="font-display text-yellow-300 text-center text-sm px-1 break-words">
+                {award.category}
+              </p>
+
+              {/* Ganador actual (si ya existe) */}
+              {award.winner_display_name && (
+                <p className="text-xs text-center mt-1 text-green-400">
+                  Ganador: {award.winner_display_name}
+                </p>
+              )}
+            </motion.div>
           ))}
+
         </div>
 
+        {/* PANEL PARA ASIGNAR GANADOR */}
         {selected && (
-          <div className="max-w-md mx-auto bg-card/50 border rounded-xl p-6 space-y-4">
-            <h2 className="font-display text-xl mb-4">
-              Ganador de: {selected.category}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="max-w-md mx-auto bg-card/50 border rounded-xl p-6 space-y-4"
+          >
+            <h2 className="font-display text-xl mb-4 text-center text-yellow-400">
+              Asignar ganador a: {selected.category}
             </h2>
 
-            <label>Usuario ganador</label>
+            {/* Mostrar Pokemon GIF */}
+            <div className="flex justify-center mb-4">
+              <img
+                src={selected.pokemon_gif}
+                className="w-28 h-28 border rounded-lg bg-black/40"
+              />
+            </div>
+
+            <label className="font-display text-sm">Usuario ganador</label>
             <select
               className="w-full border p-2 rounded text-yellow-400 bg-black"
               onChange={(e) => setWinnerUser(e.target.value)}
@@ -83,7 +134,7 @@ const AssignWinner = () => {
               ))}
             </select>
 
-            <label>Nombre a mostrar</label>
+            <label className="font-display text-sm">Nombre a mostrar</label>
             <Input
               value={winnerDisplayName}
               onChange={(e) => setWinnerDisplayName(e.target.value)}
@@ -93,7 +144,15 @@ const AssignWinner = () => {
             <Button className="w-full bg-blue-600" onClick={saveWinner}>
               Guardar ganador
             </Button>
-          </div>
+
+            <Button
+              className="w-full bg-gray-700 mt-2"
+              onClick={() => setSelected(null)}
+            >
+              Cancelar
+            </Button>
+
+          </motion.div>
         )}
       </div>
     </>

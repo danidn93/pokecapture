@@ -173,45 +173,54 @@ const CreateAward = () => {
 
         {/* LISTA DE PREMIOS */}
         <h2 className="text-lg font-display mt-10 mb-4 text-center">
-          Premios creados
+        Premios creados
         </h2>
 
-        <div className="max-w-md mx-auto space-y-4">
-          {awards.map((a, idx) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 px-4 max-w-4xl mx-auto">
+
+        {awards.map((a, idx) => (
             <motion.div
-              key={a.id}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: idx * 0.05 }}
-              className="bg-card/50 border rounded-xl p-4 flex items-center gap-4"
+            key={a.id}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: idx * 0.05 }}
+            className="bg-card/60 backdrop-blur-md border border-yellow-400 rounded-xl p-4 flex flex-col items-center shadow-lg"
             >
-              <img
+            {/* GIF */}
+            <img
                 src={a.pokemon_gif}
-                className="w-20 h-20 rounded-lg border"
-              />
+                className="w-24 h-24 rounded-md border mb-3"
+            />
 
-              <div className="flex-1">
-                <p className="font-display text-yellow-400">{a.category}</p>
-                <p className="text-xs opacity-70">{a.description}</p>
-              </div>
+            {/* Categoría */}
+            <p className="font-display text-yellow-300 text-center text-sm leading-tight px-2 break-words">
+                {a.category}
+            </p>
 
-              <div className="flex flex-col gap-2">
+            {/* Descripción */}
+            <p className="text-xs opacity-70 text-center mt-1 px-2 break-words">
+                {a.description}
+            </p>
+
+            {/* Botones */}
+            <div className="flex gap-2 mt-4">
                 <Button
-                  className="bg-blue-600 w-20"
-                  onClick={() => editAward(a)}
+                className="bg-blue-600 px-4 py-1"
+                onClick={() => editAward(a)}
                 >
-                  Editar
+                Editar
                 </Button>
 
                 <Button
-                  className="bg-red-600 w-20"
-                  onClick={() => deleteAward(a.id)}
+                className="bg-red-600 px-4 py-1"
+                onClick={() => deleteAward(a.id)}
                 >
-                  Borrar
+                Borrar
                 </Button>
-              </div>
+            </div>
             </motion.div>
-          ))}
+        ))}
+
         </div>
       </div>
     </>

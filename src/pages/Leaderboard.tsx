@@ -1,13 +1,38 @@
-import { motion } from 'framer-motion';
-import { useAuth } from '@/contexts/AuthContext';
-import { usePokemon } from '@/contexts/PokemonContext';
-import NavBar from '@/components/NavBar';
-import { Trophy, Medal, Award, Crown } from 'lucide-react';
+import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import { useAuth } from "@/contexts/AuthContext";
+import { usePokemon } from "@/contexts/PokemonContext";
+import { supabase } from "@/integrations/supabase/client";
+import NavBar from "@/components/NavBar";
+import { Trophy, Medal, Award, Crown, Gift } from "lucide-react";
 
 const Leaderboard = () => {
   const { user } = useAuth();
   const { leaderboard, loading } = usePokemon();
 
+  const [myAwards, setMyAwards] = useState([]);
+
+  // ============================
+  // 🔥 Cargar premios ganados
+  // ============================
+  useEffect(() => {
+    if (!user) return;
+
+    const loadAwards = async () => {
+      const { data } = await supabase
+        .from("awards")
+        .select("*")
+        .eq("winner_user_id", user.id)
+        .eq("delivered", true)
+        .order("updated_at", { ascending: false });
+
+      setMyAwards(data || []);
+    };
+
+    loadAwards();
+  }, [user]);
+
+  // Loading Leaderboard
   if (loading) {
     return (
       <>
@@ -27,7 +52,7 @@ const Leaderboard = () => {
 
       <div className="min-h-screen bg-hero-gradient pb-24 pt-20">
         <div className="container mx-auto px-4 py-8">
-          
+
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -54,7 +79,6 @@ const Leaderboard = () => {
                 const rank = index + 1;
                 const isCurrentUser = entry.user_id === user?.id;
 
-                // MEDALLAS
                 const medalIcon =
                   rank === 1 ? (
                     <Crown className="w-6 h-6 text-yellow-400" />
@@ -76,15 +100,13 @@ const Leaderboard = () => {
                     transition={{ delay: index * 0.07 }}
                     className={`
                       flex items-center gap-4 p-4 rounded-xl border-2 bg-card/40 backdrop-blur-sm 
-                      ${isCurrentUser ? 'ring-2 ring-primary' : 'border-border'}
+                      ${isCurrentUser ? "ring-2 ring-primary" : "border-border"}
                     `}
                   >
-                    {/* Lugar */}
                     <div className="w-10 flex items-center justify-center">
                       {medalIcon}
                     </div>
 
-                    {/* Avatar */}
                     <div className="w-12 h-12 rounded-full bg-primary/20 overflow-hidden flex items-center justify-center flex-shrink-0">
                       {entry.avatar_url ? (
                         <img
@@ -99,7 +121,6 @@ const Leaderboard = () => {
                       )}
                     </div>
 
-                    {/* Username */}
                     <div className="flex-1 min-w-0">
                       <h3 className="font-body font-semibold text-foreground truncate">
                         {entry.username}
@@ -109,7 +130,6 @@ const Leaderboard = () => {
                       </h3>
                     </div>
 
-                    {/* PUNTOS */}
                     <div className="flex items-center gap-1">
                       <span className="font-display text-lg text-pokemon-yellow">
                         {entry.points}
@@ -134,6 +154,69 @@ const Leaderboard = () => {
               </motion.div>
             )}
           </div>
+
+          {/* =======================
+              🎁 SECCIÓN PREMIOS GANADOS (3 columnas)
+              ======================= */}
+          {user && myAwards.length > 0 && (
+            <div className="max-w-3xl mx-auto mt-16">
+              <div className="flex items-center justify-center gap-2 mb-6">
+                <Gift className="w-6 h-6 text-yellow-400" />
+                <h2 className="text-xl font-display text-yellow-400">
+                  PREMIOS GANADOS
+                </h2>
+              </div>
+
+              {/* GRID de 3 columnas */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+                {myAwards.map((award, index) => (
+                  <motion.div
+                    key={award.id}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="p-4 rounded-xl bg-white/20 backdrop-blur-md border border-yellow-400 text-center shadow-lg flex flex-col items-center"
+                    style={{ minHeight: "260px" }}
+                  >
+                    {/* GIF Pokémon */}
+                    <img
+                      src={award.pokemon_gif}
+                      alt={award.category}
+                      className="w-20 h-20 mx-auto rounded-md mb-3"
+                    />
+
+                    {/* Categoría */}
+                    <h3
+                      className="font-display text-yellow-300 text-base leading-tight px-2 break-words"
+                      style={{
+                        wordWrap: "break-word",
+                        overflowWrap: "break-word",
+                        whiteSpace: "normal",
+                        maxWidth: "100%",
+                      }}
+                    >
+                      {award.category}
+                    </h3>
+
+                    {/* Fecha */}
+                    <p className="text-xs text-yellow-200 mt-1 mb-3">
+                      {new Date(award.updated_at).toLocaleDateString()}
+                    </p>
+
+                    {/* Botón */}
+                    <button
+                      onClick={() =>
+                        window.location.assign(`/award-notification?awardId=${award.id}`)
+                      }
+                      className="mt-auto w-full py-2 text-sm font-display bg-yellow-400 text-black rounded-lg hover:bg-yellow-300"
+                    >
+                      REVER PREMIO
+                    </button>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </>
