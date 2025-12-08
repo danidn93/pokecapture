@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { User as UserIcon, Mail, Lock } from 'lucide-react';
 import { z } from 'zod';
 import AvatarPicker from '@/components/AvatarPicker';
+import { supabase } from '@/integrations/supabase/client';
 
 const emailSchema = z.string().email('Email inválido');
 const passwordSchema = z.string().min(6, 'La contraseña debe tener al menos 6 caracteres');
@@ -22,9 +23,54 @@ const Login = () => {
   const [avatar, setAvatar] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  const [usedAvatars, setUsedAvatars] = useState<string[]>([]); // ⬅️ NUEVO
+
   const navigate = useNavigate();
   const { signIn, signUp } = useAuth();
 
+  // ===============================
+  // 🔥 Cargar avatares usados + Realtime
+  // ===============================
+  useEffect(() => {
+    if (!isSignUp) return;
+
+    let channel: any = null;
+
+    const loadUsedAvatars = async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("avatar_url");
+
+      setUsedAvatars(data.map(row => row.avatar_url).filter(Boolean));
+    };
+
+    loadUsedAvatars();
+
+    // Suscripción realtime
+    channel = supabase
+      .channel("avatars-realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "profiles",
+        },
+        (payload) => {
+          // Cada vez que alguien crea o actualiza un perfil → refrescar
+          loadUsedAvatars();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      if (channel) supabase.removeChannel(channel);
+    };
+  }, [isSignUp]);
+
+  // ===============================
+  // 🔥 Submit
+  // ===============================
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -78,6 +124,9 @@ const Login = () => {
     navigate('/');
   };
 
+  // ===============================
+  // 🔥 Render
+  // ===============================
   return (
     <div className="min-h-screen bg-hero-gradient flex flex-col items-center justify-center p-4">
       <motion.div
@@ -116,35 +165,40 @@ const Login = () => {
         >
           <form onSubmit={handleSubmit} className="space-y-4">
 
-            {/* Nombre de Entrenador */}
             {isSignUp && (
-              <div className="space-y-2">
-                <label className="text-sm font-body text-muted-foreground">
-                  Nombre de entrenador
-                </label>
+              <>
+                {/* Nombre */}
+                <div className="space-y-2">
+                  <label className="text-sm font-body text-muted-foreground">
+                    Nombre de entrenador
+                  </label>
 
-                <div className="relative">
-                  <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <Input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Tu nombre único"
-                    className="pl-10 bg-muted border-border text-foreground placeholder:text-muted-foreground font-body"
-                    maxLength={20}
+                  <div className="relative">
+                    <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="Tu nombre único"
+                      className="pl-10 bg-muted border-border text-foreground placeholder:text-muted-foreground font-body"
+                      maxLength={20}
+                    />
+                  </div>
+                </div>
+
+                {/* Avatar Picker */}
+                <div>
+                  <label className="text-sm font-body text-muted-foreground">
+                    Elige tu avatar
+                  </label>
+
+                  <AvatarPicker
+                    selected={avatar}
+                    onSelect={setAvatar}
+                    usedAvatars={usedAvatars} // 🔥 filtrar usados
                   />
                 </div>
-              </div>
-            )}
-
-            {/* Avatar Picker */}
-            {isSignUp && (
-              <div>
-                <label className="text-sm font-body text-muted-foreground">
-                  Elige tu avatar
-                </label>
-                <AvatarPicker selected={avatar} onSelect={setAvatar} />
-              </div>
+              </>
             )}
 
             {/* Email */}
@@ -189,7 +243,7 @@ const Login = () => {
             </Button>
           </form>
 
-          {/* Cambiar entre Login / Registro */}
+          {/* Cambiar estado */}
           <div className="mt-4 text-center">
             <button
               type="button"
@@ -201,7 +255,6 @@ const Login = () => {
           </div>
         </motion.div>
 
-        {/* PWA hint */}
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
