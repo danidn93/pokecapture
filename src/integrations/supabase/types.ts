@@ -139,6 +139,47 @@ export type Database = {
         }
         Relationships: []
       }
+      awards: {
+        Row: {
+          id: string
+          category: string
+          description: string | null
+          pokemon_gif: string | null
+          winner_user_id: string | null
+          winner_display_name: string | null
+          delivered: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          category: string
+          description?: string | null
+          pokemon_gif?: string | null
+          winner_user_id?: string | null
+          winner_display_name?: string | null
+          delivered?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          category?: string
+          description?: string | null
+          pokemon_gif?: string | null
+          winner_user_id?: string | null
+          winner_display_name?: string | null
+          delivered?: boolean
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "awards_winner_user_id_fkey"
+            columns: ["winner_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never

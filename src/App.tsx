@@ -13,6 +13,10 @@ import Leaderboard from "./pages/Leaderboard";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 import GuessPokemon from "@/pages/GuessPokemon";
+import CreateAward from "./pages/CreateAward";
+import AssignWinner from "./pages/AssignWinner";
+import AwardShowcase from "./pages/AwardShowcase";
+import AwardNotification from "./pages/AwardNotification";
 
 const queryClient = new QueryClient();
 
@@ -72,6 +76,10 @@ const AppRoutes = () => {
       <Route path="/leaderboard" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
       <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
       <Route path="/guess" element={<GuessPokemon />} />
+      <Route path="/create-award" element={<AdminRoute><CreateAward /></AdminRoute>} />
+      <Route path="/assign-winner" element={<AdminRoute><AssignWinner /></AdminRoute>} />
+      <Route path="/award-showcase" element={<ProtectedRoute><AwardShowcase /></ProtectedRoute>} />
+      <Route path="/award-notification" element={<ProtectedRoute><AwardNotification /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

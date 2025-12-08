@@ -1,6 +1,8 @@
+import { useEffect } from "react";
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from "@/integrations/supabase/client";
 import NavBar from '@/components/NavBar';
 import Pokeball from '@/components/Pokeball';
 import { Scan, Trophy, Sparkles, Settings } from 'lucide-react';
@@ -8,6 +10,30 @@ import { Scan, Trophy, Sparkles, Settings } from 'lucide-react';
 const Index = () => {
   const navigate = useNavigate();
   const { profile, isAdmin } = useAuth();
+
+  useEffect(() => {
+    if (!profile) return;
+
+    const channel = supabase
+      .channel("award-watcher")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "awards" },
+        (payload) => {
+          const award = payload.new;
+
+          if (award.winner_user_id === profile.id && award.delivered) {
+            navigate("/award-notification", { state: { award } });
+          }
+        }
+      )
+      .subscribe();
+
+    // 🔥 FIX: cleanup síncrono (no async)
+    return () => {
+      supabase.removeChannel(channel).catch(() => {});
+    };
+  }, [profile, navigate]);
 
   return (
     <>
@@ -123,6 +149,80 @@ const Index = () => {
                   <h3 className="font-display text-sm mb-1">ADMIN</h3>
                   <p className="font-body text-sm opacity-80">
                     Panel de administración
+                  </p>
+                </div>
+              </motion.button>
+            )}
+            {/* Crear Premio */}
+            {isAdmin && (
+              <motion.button
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.55 }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => navigate('/create-award')}
+                className="flex items-center gap-4 p-6 rounded-2xl 
+                          bg-gradient-to-r from-green-600 to-green-500 
+                          text-white"
+              >
+                <div className="p-3 rounded-xl bg-white/20">
+                  <Sparkles className="w-8 h-8" />
+                </div>
+                <div className="text-left">
+                  <h3 className="font-display text-sm mb-1">CREAR PREMIO</h3>
+                  <p className="font-body text-sm opacity-80">
+                    Define categoría y Pokémon
+                  </p>
+                </div>
+              </motion.button>
+            )}
+
+            {/* Asignar Ganador */}
+            {isAdmin && (
+              <motion.button
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.60 }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => navigate('/assign-winner')}
+                className="flex items-center gap-4 p-6 rounded-2xl 
+                          bg-gradient-to-r from-orange-600 to-orange-500 
+                          text-white"
+              >
+                <div className="p-3 rounded-xl bg-white/20">
+                  <Trophy className="w-8 h-8" />
+                </div>
+                <div className="text-left">
+                  <h3 className="font-display text-sm mb-1">ASIGNAR GANADOR</h3>
+                  <p className="font-body text-sm opacity-80">
+                    Selecciona el ganador y entrégalo
+                  </p>
+                </div>
+              </motion.button>
+            )}
+
+            {/* Vista de Proyección */}
+            {isAdmin && (
+              <motion.button
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.65 }}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => navigate('/award-showcase')}
+                className="flex items-center gap-4 p-6 rounded-2xl 
+                          bg-gradient-to-r from-pink-600 to-pink-500 
+                          text-white"
+              >
+                <div className="p-3 rounded-xl bg-white/20">
+                  <Pokeball size={32} />
+                </div>
+                <div className="text-left">
+                  <h3 className="font-display text-sm mb-1">VISTA DE PREMIOS</h3>
+                  <p className="font-body text-sm opacity-80">
+                    Proyéctalo en pantalla grande
                   </p>
                 </div>
               </motion.button>
