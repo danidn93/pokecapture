@@ -149,6 +149,8 @@ export type Database = {
           winner_display_name: string | null
           delivered: boolean
           created_at: string
+          updated_at: string
+          viewed: boolean
         }
         Insert: {
           id?: string
@@ -159,6 +161,7 @@ export type Database = {
           winner_display_name?: string | null
           delivered?: boolean
           created_at?: string
+          viewed?: boolean
         }
         Update: {
           id?: string
@@ -169,6 +172,7 @@ export type Database = {
           winner_display_name?: string | null
           delivered?: boolean
           created_at?: string
+          viewed?: boolean
         }
         Relationships: [
           {

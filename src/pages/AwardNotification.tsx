@@ -30,18 +30,18 @@ const AwardNotification = () => {
           .from("awards")
           .select("*")
           .eq("delivered", true)
+          .eq("viewed", false)
           .order("updated_at", { ascending: false })
-          .limit(1)
-          .single();
+          .limit(1);
 
-        setAward(data);
+        setAward(data?.[0] || null);
       }
     };
 
     loadAward();
   }, []);
 
-  // Cargar ganador & mensaje
+  // Cargar ganador + mensaje + marcar viewed TRUE
   useEffect(() => {
     if (!award) return;
 
@@ -58,19 +58,33 @@ const AwardNotification = () => {
         `¡Felicidades ${award.winner_display_name}! Has ganado el premio ${award.category}!`,
         setTypedMessage
       );
+
+      // 🔥 Marcar como visto AUTOMÁTICAMENTE
+      await supabase
+        .from("awards")
+        .update({ viewed: true })
+        .eq("id", award.id);
     };
 
     loadWinner();
   }, [award]);
 
-  // ⏳ AUTO-CERRAR A LOS 60 SEGUNDOS
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      navigate("/");
-    }, 60_000); // 1 minuto
+  // 🔥 FUNCIÓN CERRAR → también marca viewed = true
+  const closeNotification = async () => {
+    if (award?.id) {
+      await supabase
+        .from("awards")
+        .update({ viewed: true })
+        .eq("id", award.id);
+    }
+    navigate(-1);
+  };
 
+  // Auto‐cerrar al minuto
+  useEffect(() => {
+    const timer = setTimeout(closeNotification, 60000);
     return () => clearTimeout(timer);
-  }, []);
+  }, [award]);
 
   if (!award || !winner)
     return (
@@ -87,7 +101,15 @@ const AwardNotification = () => {
         backgroundAttachment: "fixed",
       }}
     >
-      {/* POKÉMON ANIMADO */}
+      {/* BOTÓN CERRAR */}
+      <button
+        onClick={closeNotification}
+        className="absolute top-6 right-6 bg-white/60 backdrop-blur-xl px-4 py-2 rounded-lg text-black font-display shadow-lg hover:bg-white/80"
+      >
+        Cerrar ✕
+      </button>
+
+      {/* Pokémon */}
       <motion.img
         src={pokemonGIF}
         onError={(e) => (e.currentTarget.src = "/fallback/pokemon.gif")}
@@ -96,31 +118,23 @@ const AwardNotification = () => {
         transition={{ repeat: Infinity, duration: 2 }}
       />
 
-      {/* Título */}
-      <h1 className="text-3xl font-display mt-6 bg-white/40 backdrop-blur-md 
-                     text-black px-6 py-3 rounded-xl shadow-lg">
+      <h1 className="text-3xl font-display mt-6 bg-white/40 backdrop-blur-md text-black px-6 py-3 rounded-xl shadow-lg">
         ¡Premio conseguido!
       </h1>
 
-      {/* Mensaje máquina de escribir */}
-      <p className="text-center font-['Press_Start_2P'] text-xs sm:text-sm 
-                    max-w-md mt-6 px-6 py-4 leading-relaxed bg-white/40 
-                    backdrop-blur-md text-black rounded-xl shadow-lg">
+      <p className="text-center font-['Press_Start_2P'] text-xs sm:text-sm max-w-md mt-6 px-6 py-4 leading-relaxed bg-white/40 backdrop-blur-md text-black rounded-xl shadow-lg">
         {typedMessage}
       </p>
 
       {/* Avatar del ganador */}
       <motion.img
         src={winner.avatar_url}
-        className="w-28 h-28 rounded-full border-4 border-yellow-400 mt-10 
-                   shadow-[0_0_25px_rgba(255,255,0,0.8)]"
+        className="w-28 h-28 rounded-full border-4 border-yellow-400 mt-10 shadow-[0_0_25px_rgba(255,255,0,0.8)]"
         animate={{ scale: [1, 1.25, 1] }}
         transition={{ duration: 1.4, repeat: Infinity }}
       />
 
-      {/* Nombre del ganador */}
-      <h2 className="font-display text-2xl mt-4 text-black bg-white/40 backdrop-blur-md 
-                     px-6 py-3 rounded-xl shadow-lg">
+      <h2 className="font-display text-2xl mt-4 text-black bg-white/40 backdrop-blur-md px-6 py-3 rounded-xl shadow-lg">
         {award.winner_display_name}
       </h2>
     </div>
