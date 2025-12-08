@@ -158,7 +158,15 @@ const AwardShowcase = () => {
   // ANIMACIÓN POKÉMON
   // ================================
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center">
+    
+    <div
+        className="min-h-screen text-white flex flex-col items-center justify-center bg-cover bg-center bg-no-repeat"
+        style={{
+            backgroundImage: "url('/backgrounds/stadium.jpg')",
+            backgroundAttachment: "fixed"
+        }}
+        >
+
       
       <motion.img
         src={selected.pokemon_gif}
@@ -167,9 +175,9 @@ const AwardShowcase = () => {
         transition={{ repeat: Infinity, duration: 2 }}
       />
 
-      <h1 className="font-display text-4xl mt-6">{selected.category}</h1>
+      <h1 className="font-display text-4xl mt-6 text-black bg-white/70 p-4 rounded-lg">{selected.category}</h1>
 
-      <p className="font-['Press_Start_2P'] text-sm max-w-lg text-center mt-6 leading-relaxed">
+      <p className="font-['Press_Start_2P'] text-sm max-w-lg text-center mt-6 leading-relaxed text-black bg-white/70 p-4 rounded-lg">
         {typedText}
       </p>
 
@@ -189,12 +197,12 @@ const AwardShowcase = () => {
       {!stopped ? (
         <button
           onClick={stopRoulette}
-          className="mt-8 px-6 py-3 bg-red-600 rounded-xl font-display"
+          className="mt-8 px-6 py-3 bg-red-600 rounded-xl font-display text-white text-xl hover:bg-red-700"
         >
           DETENER
         </button>
       ) : (
-        <h2 className="font-display text-3xl mt-6 text-yellow-400">
+        <h2 className="font-display text-3xl mt-6 text-black bg-white/70 p-4 rounded-lg">
           {selected.winner_display_name}
         </h2>
       )}

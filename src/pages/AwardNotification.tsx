@@ -65,7 +65,13 @@ const AwardNotification = () => {
   if (!award || !winner) return <p className="text-white mt-40 text-center">Cargando premio...</p>;
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center">
+    <div
+        className="min-h-screen text-white flex flex-col items-center justify-center bg-cover bg-center bg-no-repeat"
+        style={{
+            backgroundImage: "url('/backgrounds/stadium.jpg')",
+            backgroundAttachment: "fixed"
+        }}
+        >
 
       <motion.img
         src={award.pokemon_gif}
@@ -74,9 +80,9 @@ const AwardNotification = () => {
         transition={{ repeat: Infinity, duration: 2 }}
       />
 
-      <h1 className="text-3xl font-display mt-6">¡Premio conseguido!</h1>
+      <h1 className="text-3xl font-display mt-6 text-black bg-white/70 p-4 rounded-lg">¡Premio conseguido!</h1>
 
-      <p className="text-center font-['Press_Start_2P'] text-sm max-w-md mt-6 px-4 leading-relaxed">
+      <p className="text-center font-['Press_Start_2P'] text-sm max-w-md mt-6 px-4 leading-relaxed text-black bg-white/70 p-4 rounded-lg">
         {typedMessage}
       </p>
 
@@ -87,7 +93,7 @@ const AwardNotification = () => {
         transition={{ duration: 1.2, repeat: Infinity }}
       />
 
-      <h2 className="font-display text-2xl mt-4 text-yellow-400">
+      <h2 className="font-display text-2xl mt-4 text-yellow-400 text-black bg-white/70 p-4 rounded-lg">
         {award.winner_display_name}
       </h2>
     </div>
