@@ -1,3 +1,4 @@
+//src/components/QRScanner.tsx
 import { useEffect, useRef, useCallback, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { motion } from "framer-motion";

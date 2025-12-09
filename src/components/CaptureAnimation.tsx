@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Pokeball from "./Pokeball";
 import { Pokemon } from "@/types/pokemon";
@@ -16,53 +16,18 @@ const CaptureAnimation = ({
   onComplete,
   alreadyCaptured = false,
 }: CaptureAnimationProps) => {
-  const [phase, setPhase] = useState<
-    "throw" | "shake" | "capture" | "fail"
-  >("throw");
+
+  const [phase, setPhase] = useState<"throw" | "shake" | "capture" | "fail">(
+    "throw"
+  );
 
   const { capturePokemonWithPoints } = usePokemon();
 
   // ------------------------------------
-  // 🔥 EFECTO PRINCIPAL
+  // REFS PARA COLISIÓN
   // ------------------------------------
-  useEffect(() => {
-    const sequence = async () => {
-      // 1️⃣ Fase de Lanzamiento (Throw)
-      await wait(600);
-
-      if (alreadyCaptured) {
-        // Caso de falla inmediata
-        setPhase("fail");
-        vibrate(200);
-
-        await wait(1500);
-        onComplete(false);
-        return;
-      }
-
-      // 2️⃣ Fase de Sacudidas (Shake x3)
-      setPhase("shake");
-
-      for (let i = 0; i < 3; i++) {
-        vibrate(300);
-        await wait(700);
-      }
-
-      // 3️⃣ Fase de captura
-      setPhase("capture");
-      vibrate([200, 100, 200]);
-
-      triggerConfetti();
-
-      // ⭐ Nuevo: sumar puntos automáticamente
-      await capturePokemonWithPoints(pokemon);
-
-      await wait(2200);
-      onComplete(true);
-    };
-
-    sequence();
-  }, [alreadyCaptured, onComplete, pokemon, capturePokemonWithPoints]);
+  const pokemonRef = useRef<HTMLImageElement>(null);
+  const ballRef = useRef<HTMLDivElement>(null);
 
   // ------------------------------------
   // UTILS
@@ -97,33 +62,97 @@ const CaptureAnimation = ({
   };
 
   // ------------------------------------
+  // DETECCIÓN DE COLISIÓN
+  // ------------------------------------
+  const checkCollision = () => {
+    if (!pokemonRef.current || !ballRef.current) return false;
+
+    const pokeRect = pokemonRef.current.getBoundingClientRect();
+    const ballRect = ballRef.current.getBoundingClientRect();
+
+    return !(
+      ballRect.right < pokeRect.left ||
+      ballRect.left > pokeRect.right ||
+      ballRect.bottom < pokeRect.top ||
+      ballRect.top > pokeRect.bottom
+    );
+  };
+
+  // ------------------------------------
+  // MANEJO DEL LANZAMIENTO
+  // ------------------------------------
+  const handleThrow = async () => {
+    await wait(150); // esperar que termine la inercia
+
+    if (alreadyCaptured) {
+      setPhase("fail");
+      vibrate(200);
+      await wait(1500);
+      onComplete(false);
+      return;
+    }
+
+    if (checkCollision()) {
+      // CAPTURADO 🎉
+      setPhase("capture");
+      vibrate([200, 100, 200]);
+
+      triggerConfetti();
+      await capturePokemonWithPoints(pokemon);
+
+      await wait(2200);
+      onComplete(true);
+    } else {
+      // FALLÓ ❌
+      setPhase("fail");
+      vibrate(300);
+
+      await wait(1500);
+      onComplete(false);
+    }
+  };
+
+  // ------------------------------------
   // UI PRINCIPAL
   // ------------------------------------
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm">
       <AnimatePresence mode="wait">
-        {/* 1️⃣ Throw */}
+
+        {/* 1️⃣ THROW (Pokebola Lanzable) */}
         {phase === "throw" && (
           <motion.div
             key="throw"
-            initial={{ y: "100vh", scale: 0.5 }}
-            animate={{ y: 0, scale: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.6 }}
-            className="flex flex-col items-center"
+            className="flex flex-col items-center relative"
           >
             <motion.img
+              ref={pokemonRef}
               src={pokemon.image_url}
               alt={pokemon.name}
               className="w-40 h-40 mb-8"
               animate={{ y: [0, -15, 0] }}
               transition={{ repeat: Infinity, duration: 1.3 }}
             />
-            <Pokeball size={110} />
+
+            {/* Pokébola con drag + lanzamiento */}
+            <motion.div
+              ref={ballRef}
+              drag
+              dragElastic={0.15}
+              dragMomentum={true}
+              onDragEnd={handleThrow}
+              className="cursor-grab active:cursor-grabbing"
+            >
+              <Pokeball size={110} />
+            </motion.div>
+
+            <p className="mt-6 text-sm text-muted-foreground">
+              Lanza la Pokébola hacia el Pokémon
+            </p>
           </motion.div>
         )}
 
-        {/* 2️⃣ Shake x3 */}
+        {/* 2️⃣ SHAKE (Ya no se usa con lanzamiento real, pero lo mantenemos si lo requieres) */}
         {phase === "shake" && (
           <motion.div key="shake" className="flex flex-col items-center">
             <motion.div
@@ -158,7 +187,6 @@ const CaptureAnimation = ({
             animate={{ scale: 1, opacity: 1 }}
             className="flex flex-col items-center text-center"
           >
-            {/* Explosión de luz */}
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: [0, 1.3, 1] }}
@@ -212,10 +240,10 @@ const CaptureAnimation = ({
             </motion.div>
 
             <h2 className="text-xl font-display text-primary mt-6">
-              ¡YA FUE CAPTURADO!
+              ¡NO LOGRASTE CAPTURARLO!
             </h2>
             <p className="text-muted-foreground font-body">
-              {pokemon.name} ya tiene dueño
+              Inténtalo de nuevo
             </p>
           </motion.div>
         )}
