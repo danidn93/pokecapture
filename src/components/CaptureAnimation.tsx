@@ -1,237 +1,381 @@
-import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { motion, AnimatePresence, useMotionValue } from "framer-motion";
 import Pokeball from "./Pokeball";
+import CaptureRing from "./CaptureRing";
+import PokeballSparkles from "./PokeballSparkles";
 import { Pokemon } from "@/types/pokemon";
 import confetti from "canvas-confetti";
 import { usePokemon } from "@/contexts/PokemonContext";
 
+/* ============================================================
+   CONSTANTES
+============================================================ */
+const GRAVITY = 0.55; // caída parabólica estilo Pokémon GO
+const THROW_FORCE_MULTIPLIER = 0.28;
+const MAX_SPIN = 10; // cuanto spin máximo acumulable
+const SPIN_DECAY = 0.03; // pérdida gradual durante el vuelo
+
+// Probabilidades de esquivar por rareza
+const DODGE_CHANCE: Record<string, number> = {
+  common: 0.05,
+  uncommon: 0.1,
+  rare: 0.15,
+  legendary: 0.2,
+};
+
+/* ============================================================
+   INTERFAZ
+============================================================ */
 interface CaptureAnimationProps {
   pokemon: Pokemon;
   onComplete: (success: boolean) => void;
   alreadyCaptured?: boolean;
 }
 
+/* ============================================================
+   COMPONENTE PRINCIPAL
+============================================================ */
 const CaptureAnimation = ({
   pokemon,
   onComplete,
   alreadyCaptured = false,
 }: CaptureAnimationProps) => {
 
-  const [phase, setPhase] = useState<"throw" | "capture" | "fail">("throw");
+  /* ============================================================
+     ESTADOS Y REFS
+  ============================================================ */
+
+  const [phase, setPhase] = useState<"aim" | "throw" | "capture" | "fail">("aim");
+
+  const pokemonRef = useRef<HTMLDivElement>(null);
+  const ballRef = useRef<HTMLDivElement>(null);
 
   const { capturePokemonWithPoints } = usePokemon();
 
-  // Refs para hitbox
-  const pokemonRef = useRef<HTMLImageElement>(null);
-  const ballRef = useRef<HTMLDivElement>(null);
+  // Pokébola
+  const initialBall = { x: 0, y: 260 };
+  const [ballPos, setBallPos] = useState(initialBall);
+  const velocity = useRef({ x: 0, y: 0 });
 
-  // Posición inicial de la Pokébola (simula distancia)
-  const initialPos = { x: 0, y: 260 };
+  // SPIN — curveball Pokémon GO
+  const spinPower = useRef(0);  
+  const spinDirection = useRef(1); // 1 clockwise, -1 counterclockwise
+  const lastDrag = useRef<{ x: number; y: number } | null>(null);
 
-  const [ballPosition, setBallPosition] = useState(initialPos);
+  // Círculo de captura
+  const [ringProgress, setRingProgress] = useState(1); // 1 → grande, 0 → cerrado
 
-  // ------------------------------------
-  // UTILS
-  // ------------------------------------
-  const wait = (ms: number) =>
-    new Promise((resolve) => setTimeout(resolve, ms));
+  // Control del ciclo animado
+  const requestRef = useRef<number | null>(null);
 
-  const vibrate = (pattern: number | number[]) => {
-    if (navigator.vibrate) navigator.vibrate(pattern);
-  };
+  // Movimiento del Pokémon
+  const [pokeOffset, setPokeOffset] = useState(0);
+  const [pokeJump, setPokeJump] = useState(0);
+
+  /* ============================================================
+     UTILS
+  ============================================================ */
+
+  const wait = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
+  const vibrate = (p: any) => navigator.vibrate?.(p);
 
   const triggerConfetti = () => {
     confetti({
-      particleCount: 135,
-      spread: 65,
+      particleCount: 140,
+      spread: 70,
       origin: { y: 0.6 },
-      colors: ["#dc2626", "#facc15", "#3b82f6", "#22c55e"],
+      colors: ["#facc15", "#ef4444", "#3b82f6", "#22c55e"],
     });
   };
 
-  const getRarityColor = (rarity: string) => {
-    switch (rarity) {
-      case "legendary":
-        return "text-pokemon-yellow";
-      case "rare":
-        return "text-pokemon-purple";
-      case "uncommon":
-        return "text-pokemon-blue";
-      default:
-        return "text-pokemon-green";
-    }
+  const getThrowGrade = () => {
+    if (ringProgress > 0.65) return "Nice";
+    if (ringProgress > 0.35) return "Great";
+    return "Excellent";
   };
 
-  // ------------------------------------
-  // DETECCIÓN DE COLISIÓN
-  // ------------------------------------
-  const checkCollision = () => {
-    if (!pokemonRef.current || !ballRef.current) return false;
+  const chance = (p: number) => Math.random() < p;
 
-    const pokeRect = pokemonRef.current.getBoundingClientRect();
-    const ballRect = ballRef.current.getBoundingClientRect();
+  /* ============================================================
+     DETECTAR COLISIÓN
+  ============================================================ */
+
+  const checkCollision = () => {
+    const poke = pokemonRef.current?.getBoundingClientRect();
+    const ball = ballRef.current?.getBoundingClientRect();
+
+    if (!poke || !ball) return false;
 
     return !(
-      ballRect.right < pokeRect.left ||
-      ballRect.left > pokeRect.right ||
-      ballRect.bottom < pokeRect.top ||
-      ballRect.top > pokeRect.bottom
+      ball.right < poke.left ||
+      ball.left > poke.right ||
+      ball.bottom < poke.top ||
+      ball.top > poke.bottom
     );
   };
 
-  // ------------------------------------
-  // LANZAMIENTO REAL
-  // ------------------------------------
-  const handleThrow = async () => {
-    await wait(200);
+  /* ============================================================
+     MOVIMIENTO DEL POKÉMON: lados + saltos + esquivas
+  ============================================================ */
 
-    if (alreadyCaptured) {
-      setPhase("fail");
-      vibrate(200);
-      await wait(1500);
-      onComplete(false);
+  useEffect(() => {
+    let t = 0;
+
+    const loop = () => {
+      t += 0.03;
+
+      // Movimiento lateral
+      setPokeOffset(Math.sin(t) * 20);
+
+      // Saltos
+      setPokeJump(Math.abs(Math.sin(t * 2)) * 15);
+
+      // Esquivas según rareza
+      if (chance(DODGE_CHANCE[pokemon.rarity] || 0)) {
+        setPokeOffset((Math.random() - 0.5) * 60);
+      }
+
+      requestAnimationFrame(loop);
+    };
+
+    loop();
+  }, [pokemon.rarity]);
+
+  /* ============================================================
+     ANIMACIÓN DE FÍSICA (LANZAMIENTO)
+  ============================================================ */
+
+  const animateThrow = useCallback(() => {
+    setBallPos((prev) => {
+      let nextX = prev.x + velocity.current.x;
+      let nextY = prev.y + velocity.current.y;
+
+      // Aplicar gravedad
+      velocity.current.y += GRAVITY;
+
+      // Aplicar curvatura por spin
+      if (spinPower.current > 0) {
+        nextX += spinDirection.current * spinPower.current * 0.3;
+        spinPower.current = Math.max(0, spinPower.current - SPIN_DECAY);
+      }
+
+      // Colisión con Pokémon
+      if (checkCollision()) {
+        cancelAnimationFrame(requestRef.current!);
+        handleHit();
+        return prev;
+      }
+
+      // Si cae al piso
+      if (nextY > 300) {
+        cancelAnimationFrame(requestRef.current!);
+        handleMiss();
+        return prev;
+      }
+
+      return { x: nextX, y: nextY };
+    });
+
+    requestRef.current = requestAnimationFrame(animateThrow);
+  }, []);
+
+  /* ============================================================
+     MANEJO DEL DRAG (CARGA DE SPIN)
+  ============================================================ */
+
+  const handleDrag = (e: any, info: any) => {
+    if (!lastDrag.current) {
+      lastDrag.current = { x: info.point.x, y: info.point.y };
       return;
     }
 
-    if (checkCollision()) {
-      // CAPTURADO
-      setPhase("capture");
-      vibrate([200, 100, 200]);
+    const dx = info.point.x - lastDrag.current.x;
+    const dy = info.point.y - lastDrag.current.y;
 
-      triggerConfetti();
-      await capturePokemonWithPoints(pokemon);
+    // Determinar giro
+    const cross = dx * dy;
+    spinDirection.current = cross > 0 ? 1 : -1;
 
-      await wait(2200);
-      onComplete(true);
-      return;
-    }
+    // Acumular spin
+    spinPower.current = Math.min(MAX_SPIN, spinPower.current + Math.abs(dx + dy) * 0.01);
 
-    // FALLO → PERMITIR REINTENTOS
-    setPhase("fail");
-    vibrate(300);
-
-    await wait(900);
-
-    // Volver a intentar automáticamente
-    setBallPosition(initialPos);
-    setPhase("throw");
+    lastDrag.current = { x: info.point.x, y: info.point.y };
   };
 
-  // ------------------------------------
-  // UI PRINCIPAL
-  // ------------------------------------
+  /* ============================================================
+     MANEJO DEL LANZAMIENTO (dragEnd)
+  ============================================================ */
+
+  const handleThrow = async (e: any, info: any) => {
+    lastDrag.current = null;
+
+    const forceX = info.velocity.x * THROW_FORCE_MULTIPLIER;
+    const forceY = info.velocity.y * THROW_FORCE_MULTIPLIER;
+
+    velocity.current = {
+      x: forceX,
+      y: Math.min(forceY, -10),
+    };
+
+    setPhase("throw");
+    requestRef.current = requestAnimationFrame(animateThrow);
+  };
+
+  /* ============================================================
+     HIT (CAPTURA)
+  ============================================================ */
+
+  const handleHit = async () => {
+    vibrate([100, 50, 100]);
+
+    const grade = getThrowGrade();
+
+    setPhase("capture");
+    triggerConfetti();
+
+    await capturePokemonWithPoints(pokemon);
+
+    await wait(1600);
+
+    onComplete(true);
+  };
+
+  /* ============================================================
+     MISS (FALLO)
+  ============================================================ */
+
+  const handleMiss = async () => {
+    vibrate([200]);
+
+    setPhase("fail");
+
+    await wait(800);
+
+    // Reset
+    setBallPos(initialBall);
+    velocity.current = { x: 0, y: 0 };
+    spinPower.current = 0;
+    setPhase("aim");
+  };
+
+  /* ============================================================
+     ANIMACIÓN DE CIERRE DEL CÍRCULO
+  ============================================================ */
+
+  useEffect(() => {
+    let t = 0;
+    let active = true;
+
+    const ringLoop = () => {
+      if (!active) return;
+
+      t += 0.016;
+
+      // Tiempo total: 2 segundos
+      let p = 1 - (t / 2);
+
+      setRingProgress(Math.max(0, p));
+
+      if (p <= 0) t = 0;
+
+      requestAnimationFrame(ringLoop);
+    };
+
+    ringLoop();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  /* ============================================================
+     UI
+  ============================================================ */
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm">
+    <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm z-50">
       <AnimatePresence mode="wait">
 
-        {/* ==============================
-            THROW (LANZAR LA POKÉBOLA)
-        =============================== */}
-        {phase === "throw" && (
+        {phase !== "capture" && (
           <motion.div
-            key="throw"
-            className="flex flex-col items-center relative"
+            className="absolute top-20 flex flex-col items-center"
+            animate={{
+              x: pokeOffset,
+              y: -pokeJump,
+            }}
+            transition={{ type: "spring", stiffness: 50 }}
+            ref={pokemonRef}
           >
-            {/* Pokémon (a ~3 metros visuales) */}
-            <motion.img
-              ref={pokemonRef}
+            {/* Pokémon */}
+            <img
               src={pokemon.image_url}
               alt={pokemon.name}
-              className="w-40 h-40 mb-32" // Pokémon más arriba
-              animate={{ y: [0, -10, 0] }}
-              transition={{ repeat: Infinity, duration: 1.3 }}
+              className="w-40 h-40 select-none"
             />
 
-            {/* Pokébola lanzable */}
-            <motion.div
-              ref={ballRef}
-              drag
-              dragElastic={0.1}
-              dragMomentum={true}
-              initial={initialPos}
-              animate={ballPosition}
-              onDragEnd={handleThrow}
-              className="cursor-grab active:cursor-grabbing"
-            >
-              <Pokeball size={110} />
-            </motion.div>
-
-            <p className="mt-10 text-sm text-muted-foreground">
-              Lanza la Pokébola hacia el Pokémon 🔥
-            </p>
+            {/* Círculo de captura */}
+            <CaptureRing
+              rarity={pokemon.rarity}
+              progress={ringProgress}
+              size={150}
+            />
           </motion.div>
         )}
 
-        {/* ==============================
-            CAPTURE
-        =============================== */}
-        {phase === "capture" && (
+        {/* AIM — Modo de puntería antes de soltar */}
+        {phase === "aim" && (
           <motion.div
-            key="capture"
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="flex flex-col items-center text-center"
+            className="absolute"
+            ref={ballRef}
+            drag
+            dragElastic={0.12}
+            dragMomentum={true}
+            onDrag={handleDrag}
+            onDragEnd={handleThrow}
+            animate={ballPos}
           >
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: [0, 1.3, 1] }}
-              transition={{ duration: 0.5 }}
-              className="relative"
-            >
-              <div className="absolute inset-0 rounded-full bg-pokemon-yellow/30 animate-ping" />
-              <img
-                src={pokemon.image_url}
-                alt={pokemon.name}
-                className="w-48 h-48 relative z-10"
-              />
-            </motion.div>
-
-            <motion.div
-              initial={{ y: 30, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.3 }}
-              className="mt-6"
-            >
-              <h2 className="text-3xl font-display text-pokemon-yellow mb-2">
-                ¡CAPTURADO!
-              </h2>
-              <p className="text-xl font-body text-foreground">
-                {pokemon.name}
-              </p>
-              <span
-                className={`text-sm uppercase tracking-wider ${getRarityColor(
-                  pokemon.rarity
-                )}`}
-              >
-                {pokemon.rarity}
-              </span>
-            </motion.div>
+            <div className="relative">
+              <Pokeball size={110} />
+              <PokeballSparkles spinPower={spinPower.current} />
+            </div>
           </motion.div>
         )}
 
-        {/* ==============================
-            FAIL → VOLVER A INTENTAR
-        =============================== */}
+        {/* FAIL */}
         {phase === "fail" && (
           <motion.div
-            key="fail"
+            className="absolute"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="flex flex-col items-center text-center"
           >
-            <motion.div
-              animate={{ rotate: [-15, 15, -15, 15, 0] }}
-              transition={{ duration: 0.5 }}
-            >
-              <Pokeball size={100} />
-            </motion.div>
-
-            <h2 className="text-xl font-display text-primary mt-6">
+            <Pokeball size={120} />
+            <p className="text-center mt-4 text-white text-xl font-bold">
               ¡Fallaste!
-            </h2>
-            <p className="text-muted-foreground font-body">
-              Inténtalo de nuevo ⚡
             </p>
+          </motion.div>
+        )}
+
+        {/* CAPTURE */}
+        {phase === "capture" && (
+          <motion.div
+            className="absolute flex flex-col items-center"
+            initial={{ scale: 0.9 }}
+            animate={{ scale: 1 }}
+          >
+            <img
+              src={pokemon.image_url}
+              className="w-48 h-48 drop-shadow-xl"
+              alt=""
+            />
+
+            <motion.p
+              className="text-yellow-300 text-3xl font-bold mt-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+            >
+              ¡Capturado!
+            </motion.p>
           </motion.div>
         )}
       </AnimatePresence>
