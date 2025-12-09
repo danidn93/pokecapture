@@ -1,15 +1,21 @@
-//src/components/QRScanner.tsx
 import { useEffect, useRef, useCallback, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { motion } from "framer-motion";
 import { Camera, AlertCircle, Sparkles, RefreshCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePokemon } from "@/contexts/PokemonContext";
 
 /* ============================================================
    POPUP LEVEL UP
-   ============================================================ */
-const LevelUpPopup = ({ level, onClose }: { level: number; onClose: () => void }) => (
+============================================================ */
+const LevelUpPopup = ({
+  level,
+  onClose,
+}: {
+  level: number;
+  onClose: () => void;
+}) => (
   <motion.div
     initial={{ opacity: 0 }}
     animate={{ opacity: 1 }}
@@ -45,7 +51,7 @@ const LevelUpPopup = ({ level, onClose }: { level: number; onClose: () => void }
 
 /* ============================================================
    QRScanner
-   ============================================================ */
+============================================================ */
 interface QRScannerProps {
   onScan: (result: string) => void;
   onError?: (error: string) => void;
@@ -65,16 +71,23 @@ const QRScanner = ({ onScan, onError }: QRScannerProps) => {
   const [floatingMessage, setFloatingMessage] = useState<string | null>(null);
   const [levelUp, setLevelUp] = useState<number | null>(null);
 
+  const { captures } = usePokemon();
   const { user } = useAuth();
+
+  /* ============================================================
+     CHECK IF ALREADY CAPTURED
+  ============================================================= */
+  const checkIfCaptured = (qrValue: string) => {
+    return captures.some(
+      (c) => c.pokemon?.qr_code && c.pokemon.qr_code === qrValue
+    );
+  };
 
   useEffect(() => {
     onScanRef.current = onScan;
     onErrorRef.current = onError;
   }, [onScan, onError]);
 
-  /* ============================================================
-     LOAD CAMERAS + SELECT BACK CAMERA
-     ============================================================ */
   const loadCameras = async () => {
     const devices = await Html5Qrcode.getCameras();
     setCameras(devices);
@@ -92,9 +105,6 @@ const QRScanner = ({ onScan, onError }: QRScannerProps) => {
     loadCameras();
   }, []);
 
-  /* ============================================================
-     STOP SCAN
-     ============================================================ */
   const stopScanner = useCallback(async () => {
     if (scannerRef.current && isScanning) {
       try {
@@ -104,9 +114,6 @@ const QRScanner = ({ onScan, onError }: QRScannerProps) => {
     }
   }, [isScanning]);
 
-  /* ============================================================
-     START SCAN
-     ============================================================ */
   const startScanner = useCallback(async () => {
     if (!selectedCamera) return;
 
@@ -127,8 +134,19 @@ const QRScanner = ({ onScan, onError }: QRScannerProps) => {
         async (decodedText) => {
           navigator.vibrate?.(200);
 
+          // Flash efecto
           setOverlayFlash(true);
           setTimeout(() => setOverlayFlash(false), 300);
+
+          /* ============================================================
+             🔒 VALIDAR SI YA LO CAPTURASTE
+          ============================================================ */
+          if (checkIfCaptured(decodedText)) {
+            setFloatingMessage("¡Ya lo capturaste!");
+            navigator.vibrate?.(200);
+            setTimeout(() => setFloatingMessage(null), 1500);
+            return;
+          }
 
           setFloatingMessage("¡Pokémon detectado!");
           setTimeout(() => setFloatingMessage(null), 1500);
@@ -137,7 +155,6 @@ const QRScanner = ({ onScan, onError }: QRScannerProps) => {
           onScanRef.current(decodedText);
         },
 
-        /* IGNORE ERRORS */
         () => {}
       );
 
@@ -148,9 +165,6 @@ const QRScanner = ({ onScan, onError }: QRScannerProps) => {
     }
   }, [selectedCamera, isScanning, stopScanner]);
 
-  /* ============================================================
-     SWITCH CAMERA
-     ============================================================ */
   const switchCamera = async () => {
     if (cameras.length < 2) return;
 
@@ -162,7 +176,6 @@ const QRScanner = ({ onScan, onError }: QRScannerProps) => {
     startScanner();
   };
 
-  /* Cleanup */
   useEffect(() => {
     return () => {
       if (scannerRef.current) {
@@ -174,33 +187,31 @@ const QRScanner = ({ onScan, onError }: QRScannerProps) => {
 
   /* ============================================================
      UI
-     ============================================================ */
+  ============================================================ */
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="relative">
 
-      {/* FLASH OVERLAY */}
+      {/* FLASH */}
       {overlayFlash && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 0.9 }}
-          exit={{ opacity: 0 }}
           className="absolute inset-0 bg-yellow-300/40 pointer-events-none z-40"
         />
       )}
 
-      {/* FLOATING MESSAGE: AL DETECTAR */}
+      {/* FLOATING MESSAGE */}
       {floatingMessage && (
         <motion.div
           initial={{ y: 30, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          exit={{ opacity: 0 }}
           className="absolute top-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-xl bg-black/70 text-white font-display text-sm z-40"
         >
           {floatingMessage}
         </motion.div>
       )}
 
-      {/* FLOATING POKÉMON MESSAGE: SI ESTÁ ESCANEANDO */}
+      {/* TOP LABEL */}
       {isScanning && (
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -213,9 +224,8 @@ const QRScanner = ({ onScan, onError }: QRScannerProps) => {
         </motion.div>
       )}
 
-      {/* CAMERA VIEWPORT */}
+      {/* CAMERA VIEW */}
       <div className="relative rounded-2xl overflow-hidden border-4 border-primary/50 shadow-glow-red bg-card">
-
         <div id="qr-reader" className="w-full min-h-[300px] flex items-center justify-center" />
 
         {/* START BUTTON */}
@@ -260,7 +270,6 @@ const QRScanner = ({ onScan, onError }: QRScannerProps) => {
             />
           </div>
         )}
-
       </div>
 
       {/* SWITCH CAMERA */}
@@ -282,9 +291,8 @@ const QRScanner = ({ onScan, onError }: QRScannerProps) => {
         </div>
       )}
 
-      {/* POPUP LEVEL UP */}
+      {/* LEVEL UP POPUP */}
       {levelUp && <LevelUpPopup level={levelUp} onClose={() => setLevelUp(null)} />}
-
     </motion.div>
   );
 };

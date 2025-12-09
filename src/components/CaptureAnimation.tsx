@@ -1,5 +1,3 @@
-// src/components/CaptureAnimation.tsx
-
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Pokeball from "./Pokeball";
@@ -18,10 +16,9 @@ const CaptureAnimation = ({
   onComplete,
   alreadyCaptured = false,
 }: CaptureAnimationProps) => {
-
-  const [phase, setPhase] = useState<"throw" | "shake" | "capture" | "fail">(
-    "throw"
-  );
+  const [phase, setPhase] = useState<
+    "throw" | "shake" | "capture" | "fail"
+  >("throw");
 
   const { capturePokemonWithPoints } = usePokemon();
 
@@ -30,7 +27,6 @@ const CaptureAnimation = ({
   ============================================================ */
   useEffect(() => {
     const sequence = async () => {
-      // 1️⃣ Fase de Lanzamiento (Throw)
       await wait(600);
 
       if (alreadyCaptured) {
@@ -41,7 +37,6 @@ const CaptureAnimation = ({
         return;
       }
 
-      // 2️⃣ Fase de Sacudidas (Shake x3)
       setPhase("shake");
 
       for (let i = 0; i < 3; i++) {
@@ -49,12 +44,10 @@ const CaptureAnimation = ({
         await wait(700);
       }
 
-      // 3️⃣ Fase de captura
       setPhase("capture");
       vibrate([200, 100, 200]);
       triggerConfetti();
 
-      // Sumar puntos automáticamente
       await capturePokemonWithPoints(pokemon);
 
       await wait(2200);
@@ -64,13 +57,10 @@ const CaptureAnimation = ({
     sequence();
   }, [alreadyCaptured, onComplete, pokemon, capturePokemonWithPoints]);
 
-
   /* ============================================================
      UTILS
   ============================================================ */
-
-  const wait = (ms: number) =>
-    new Promise((resolve) => setTimeout(resolve, ms));
+  const wait = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
   const vibrate = (pattern: number | number[]) => {
     if (navigator.vibrate) navigator.vibrate(pattern);
@@ -99,14 +89,13 @@ const CaptureAnimation = ({
   };
 
   /* ============================================================
-     UI PRINCIPAL
+     UI
   ============================================================ */
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm">
       <AnimatePresence mode="wait">
 
-        {/* 1️⃣ THROW */}
+        {/* THROW */}
         {phase === "throw" && (
           <motion.div
             key="throw"
@@ -128,18 +117,12 @@ const CaptureAnimation = ({
           </motion.div>
         )}
 
-        {/* 2️⃣ SHAKE */}
+        {/* SHAKE */}
         {phase === "shake" && (
           <motion.div key="shake" className="flex flex-col items-center">
             <motion.div
-              animate={{
-                rotate: [-15, 15, -15, 15, 0],
-              }}
-              transition={{
-                duration: 0.7,
-                repeat: 3,
-                ease: "easeInOut",
-              }}
+              animate={{ rotate: [-15, 15, -15, 15, 0] }}
+              transition={{ duration: 0.7, repeat: 3, ease: "easeInOut" }}
             >
               <Pokeball size={110} isShaking />
             </motion.div>
@@ -155,7 +138,7 @@ const CaptureAnimation = ({
           </motion.div>
         )}
 
-        {/* 3️⃣ CAPTURE */}
+        {/* CAPTURE */}
         {phase === "capture" && (
           <motion.div
             key="capture"
@@ -163,7 +146,6 @@ const CaptureAnimation = ({
             animate={{ scale: 1, opacity: 1 }}
             className="flex flex-col items-center text-center"
           >
-            {/* Explosión */}
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: [0, 1.3, 1] }}
@@ -203,7 +185,7 @@ const CaptureAnimation = ({
           </motion.div>
         )}
 
-        {/* 4️⃣ FAIL */}
+        {/* FAIL */}
         {phase === "fail" && (
           <motion.div
             key="fail"
@@ -219,11 +201,11 @@ const CaptureAnimation = ({
             </motion.div>
 
             <h2 className="text-xl font-display text-primary mt-6">
-              ¡YA FUE CAPTURADO!
+              ¡YA LO CAPTURASTE!
             </h2>
 
             <p className="text-muted-foreground font-body">
-              {pokemon.name} ya tiene dueño
+              {pokemon.name} ya está en tu Pokédex
             </p>
           </motion.div>
         )}
